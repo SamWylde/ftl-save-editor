@@ -21,6 +21,15 @@ public partial class CrewEditor : UserControl
         var ship = _state.GameState?.PlayerShip;
         if (ship == null) return;
 
+        // Show info banner in partial mode
+        if (_state.GameState?.ParseMode == SaveParseMode.PartialPlayerShipOpaqueTail)
+        {
+            PartialModeBanner.Visibility = Visibility.Visible;
+            PartialModeBannerText.Text =
+                "Partial mode: Hyperspace extension data is preserved but not shown. " +
+                "Only vanilla crew fields are editable. Adding or removing crew is not supported.";
+        }
+
         CrewCountText.Text = $"{ship.Crew.Count} crew member(s)";
         CrewListPanel.Children.Clear();
 
@@ -131,24 +140,12 @@ public partial class CrewEditor : UserControl
 
         // Skill rows
         int sRow = 1;
-        AddSkillRow(skillGrid, sRow++, "Pilot", crew.PilotSkill, v => crew.PilotSkill = v,
-            crew.PilotMasteryOne, v => crew.PilotMasteryOne = v,
-            crew.PilotMasteryTwo, v => crew.PilotMasteryTwo = v);
-        AddSkillRow(skillGrid, sRow++, "Engine", crew.EngineSkill, v => crew.EngineSkill = v,
-            crew.EngineMasteryOne, v => crew.EngineMasteryOne = v,
-            crew.EngineMasteryTwo, v => crew.EngineMasteryTwo = v);
-        AddSkillRow(skillGrid, sRow++, "Shield", crew.ShieldSkill, v => crew.ShieldSkill = v,
-            crew.ShieldMasteryOne, v => crew.ShieldMasteryOne = v,
-            crew.ShieldMasteryTwo, v => crew.ShieldMasteryTwo = v);
-        AddSkillRow(skillGrid, sRow++, "Weapon", crew.WeaponSkill, v => crew.WeaponSkill = v,
-            crew.WeaponMasteryOne, v => crew.WeaponMasteryOne = v,
-            crew.WeaponMasteryTwo, v => crew.WeaponMasteryTwo = v);
-        AddSkillRow(skillGrid, sRow++, "Repair", crew.RepairSkill, v => crew.RepairSkill = v,
-            crew.RepairMasteryOne, v => crew.RepairMasteryOne = v,
-            crew.RepairMasteryTwo, v => crew.RepairMasteryTwo = v);
-        AddSkillRow(skillGrid, sRow++, "Combat", crew.CombatSkill, v => crew.CombatSkill = v,
-            crew.CombatMasteryOne, v => crew.CombatMasteryOne = v,
-            crew.CombatMasteryTwo, v => crew.CombatMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Pilot", crew.PilotSkill, v => crew.PilotSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Engine", crew.EngineSkill, v => crew.EngineSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Shield", crew.ShieldSkill, v => crew.ShieldSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Weapon", crew.WeaponSkill, v => crew.WeaponSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Repair", crew.RepairSkill, v => crew.RepairSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Combat", crew.CombatSkill, v => crew.CombatSkill = v);
 
         content.Children.Add(skillGrid);
         content.Children.Add(new Separator
@@ -333,7 +330,7 @@ public partial class CrewEditor : UserControl
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var headers = new[] { ("Skill", 0), ("Level", 1), ("", 2), ("Mastery 1", 3), ("Mastery 2", 4) };
+        var headers = new[] { ("Skill", 0), ("Level", 1) };
         foreach (var (text, col) in headers)
         {
             var tb = new TextBlock
@@ -351,9 +348,7 @@ public partial class CrewEditor : UserControl
     }
 
     private void AddSkillRow(Grid grid, int row, string name,
-        int skillValue, Action<int> skillSetter,
-        bool mastery1, Action<bool> mastery1Setter,
-        bool mastery2, Action<bool> mastery2Setter)
+        int skillValue, Action<int> skillSetter)
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -386,29 +381,7 @@ public partial class CrewEditor : UserControl
         Grid.SetRow(box, row);
         Grid.SetColumn(box, 1);
         grid.Children.Add(box);
-
-        var chk1 = new CheckBox
-        {
-            IsChecked = mastery1,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        chk1.Checked += (_, _) => { mastery1Setter(true); _state.MarkDirty(); };
-        chk1.Unchecked += (_, _) => { mastery1Setter(false); _state.MarkDirty(); };
-        Grid.SetRow(chk1, row);
-        Grid.SetColumn(chk1, 3);
-        grid.Children.Add(chk1);
-
-        var chk2 = new CheckBox
-        {
-            IsChecked = mastery2,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        chk2.Checked += (_, _) => { mastery2Setter(true); _state.MarkDirty(); };
-        chk2.Unchecked += (_, _) => { mastery2Setter(false); _state.MarkDirty(); };
-        Grid.SetRow(chk2, row);
-        Grid.SetColumn(chk2, 4);
-        grid.Children.Add(chk2);
     }
+
+
 }

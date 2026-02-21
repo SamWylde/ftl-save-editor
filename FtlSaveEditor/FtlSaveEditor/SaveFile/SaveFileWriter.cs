@@ -22,13 +22,17 @@ public class SaveFileWriter
     {
         using var ms = new MemoryStream();
         _writer = new BinaryWriter(ms);
-        if (state.ParseMode == SaveParseMode.RestrictedOpaqueTail)
+        switch (state.ParseMode)
         {
-            WriteRestrictedOpaqueSave(state);
-        }
-        else
-        {
-            WriteSavedGame(state);
+            case SaveParseMode.Full:
+                WriteSavedGame(state);
+                break;
+            case SaveParseMode.PartialPlayerShipOpaqueTail:
+                WritePartialPlayerShipOpaqueTail(state);
+                break;
+            case SaveParseMode.RestrictedOpaqueTail:
+                WriteRestrictedOpaqueSave(state);
+                break;
         }
         return ms.ToArray();
     }
@@ -156,6 +160,85 @@ public class SaveFileWriter
         {
             _writer.Write(state.OpaqueTailBytes);
         }
+    }
+
+    private void WritePartialPlayerShipOpaqueTail(SavedGameState state)
+    {
+        int fmt = state.FileFormat;
+        var ship = state.PlayerShip;
+
+        WriteHeaderAndStateVars(state);
+
+        // Pre-ship opaque bytes (HS data between state vars and ship start).
+        if (state.OpaquePrePlayerShipBytes.Length > 0)
+            _writer.Write(state.OpaquePrePlayerShipBytes);
+
+        // Ship header fields (editable).
+        WriteString(ship.ShipBlueprintId);
+        WriteString(ship.ShipName);
+        WriteString(ship.ShipGfxBaseName);
+        if (!string.IsNullOrEmpty(ship.ExtraShipStringBeforeCrew))
+            WriteString(ship.ExtraShipStringBeforeCrew);
+
+        WriteInt(ship.StartingCrew.Count);
+        foreach (var sc in ship.StartingCrew)
+        {
+            WriteString(sc.Race);
+            WriteString(sc.Name);
+        }
+
+        if (fmt >= 7)
+        {
+            WriteBool(ship.Hostile);
+            WriteInt(ship.JumpChargeTicks);
+            WriteBool(ship.Jumping);
+            WriteInt(ship.JumpAnimTicks);
+        }
+
+        WriteInt(ship.HullAmt);
+        WriteInt(ship.FuelAmt);
+        WriteInt(ship.DronePartsAmt);
+        WriteInt(ship.MissilesAmt);
+        WriteInt(ship.ScrapAmt);
+
+        // Opaque ship interior OR parsed crew + post-crew bytes.
+        if (ship.OpaqueShipInteriorBytes.Length > 0)
+        {
+            // Legacy: entire interior is opaque (crew parsing failed or not attempted).
+            _writer.Write(ship.OpaqueShipInteriorBytes);
+        }
+        else if (ship.Crew.Count > 0 || ship.OpaquePostCrewBytes.Length > 0)
+        {
+            // Crew was parsed: write crew count + per-crew inline HS + vanilla data + post-crew opaque.
+            WriteInt(ship.Crew.Count);
+            foreach (var crew in ship.Crew)
+            {
+                WriteCrewStateWithHsInline(crew, fmt);
+            }
+            if (ship.OpaquePostCrewBytes.Length > 0)
+                _writer.Write(ship.OpaquePostCrewBytes);
+        }
+
+        // Weapons (editable).
+        WriteInt(ship.Weapons.Count);
+        foreach (var weapon in ship.Weapons)
+        {
+            WriteString(weapon.WeaponId);
+            WriteBool(weapon.Armed);
+            if (fmt == 2) WriteInt(weapon.CooldownTicks);
+        }
+
+        // Drones (editable).
+        WriteInt(ship.Drones.Count);
+        foreach (var drone in ship.Drones) WriteDroneState(drone);
+
+        // Augments (editable).
+        WriteInt(ship.AugmentIds.Count);
+        foreach (var aug in ship.AugmentIds) WriteString(aug);
+
+        // Post-augments opaque tail (HS data + cargo + sector map + everything else).
+        if (state.OpaqueTailBytes.Length > 0)
+            _writer.Write(state.OpaqueTailBytes);
     }
 
     private void WriteHeaderAndStateVars(SavedGameState state)
@@ -385,6 +468,96 @@ public class SaveFileWriter
             if (crew.LockdownRechargeTicksGoal != null) WriteInt(crew.LockdownRechargeTicksGoal.Value);
             if (crew.UnknownOmega != null) WriteInt(crew.UnknownOmega.Value);
         }
+    }
+
+    /// <summary>
+    /// Writes a crew member with HS inline extension data.
+    /// The HS extension is injected between universalDeathCount and mastery bools.
+    /// </summary>
+    private void WriteCrewStateWithHsInline(CrewState crew, int fmt)
+    {
+        bool hasHsInline = crew.HsInlinePreStringBytes.Length > 0;
+
+        // Vanilla fields: name through universalDeathCount
+        WriteString(crew.Name);
+        WriteString(crew.Race);
+        WriteBool(crew.EnemyBoardingDrone);
+        WriteInt(crew.Health);
+        WriteInt(crew.SpriteX);
+        WriteInt(crew.SpriteY);
+        WriteInt(crew.RoomId);
+        WriteInt(crew.RoomSquare);
+        WriteBool(crew.PlayerControlled);
+
+        if (fmt >= 7)
+        {
+            WriteInt(crew.CloneReady);
+            WriteInt(crew.DeathOrder);
+            WriteInt(crew.SpriteTintIndices.Count);
+            foreach (var tint in crew.SpriteTintIndices) WriteInt(tint);
+            WriteBool(crew.MindControlled);
+            WriteInt(crew.SavedRoomSquare);
+            WriteInt(crew.SavedRoomId);
+        }
+
+        WriteInt(crew.PilotSkill);
+        WriteInt(crew.EngineSkill);
+        WriteInt(crew.ShieldSkill);
+        WriteInt(crew.WeaponSkill);
+        WriteInt(crew.RepairSkill);
+        WriteInt(crew.CombatSkill);
+        WriteBool(crew.Male);
+
+        WriteInt(crew.Repairs);
+        WriteInt(crew.CombatKills);
+        WriteInt(crew.PilotedEvasions);
+        WriteInt(crew.JumpsSurvived);
+        WriteInt(crew.SkillMasteriesEarned);
+
+        if (fmt >= 7)
+        {
+            WriteInt(crew.StunTicks);
+            WriteInt(crew.HealthBoost);
+            WriteInt(crew.ClonebayPriority);
+            WriteInt(crew.DamageBoost);
+            WriteInt(crew.UnknownLambda);
+            WriteInt(crew.UniversalDeathCount);
+        }
+
+        // HS inline extension (between universalDeathCount and mastery bools)
+        if (hasHsInline)
+        {
+            _writer.Write(crew.HsInlinePreStringBytes);
+            WriteString(crew.HsOriginalColorRace);
+            WriteString(crew.HsOriginalRace);
+            _writer.Write(crew.HsInlinePostStringBytes);
+        }
+
+        // Vanilla: mastery bools
+        if (fmt >= 8)
+        {
+            WriteBool(crew.PilotMasteryOne);
+            WriteBool(crew.PilotMasteryTwo);
+            WriteBool(crew.EngineMasteryOne);
+            WriteBool(crew.EngineMasteryTwo);
+            WriteBool(crew.ShieldMasteryOne);
+            WriteBool(crew.ShieldMasteryTwo);
+            WriteBool(crew.WeaponMasteryOne);
+            WriteBool(crew.WeaponMasteryTwo);
+            WriteBool(crew.RepairMasteryOne);
+            WriteBool(crew.RepairMasteryTwo);
+            WriteBool(crew.CombatMasteryOne);
+            WriteBool(crew.CombatMasteryTwo);
+        }
+
+        // Vanilla: unknownNu + teleportAnim + unknownPhi
+        if (fmt >= 7)
+        {
+            WriteBool(crew.UnknownNu);
+            if (crew.TeleportAnim != null) WriteAnimState(crew.TeleportAnim);
+            WriteBool(crew.UnknownPhi);
+        }
+        // NO crystal lockdown in HS/MV format (handled by HS crew powers)
     }
 
     // ========================================================================
@@ -710,8 +883,8 @@ public class SaveFileWriter
 
     private void WriteAnimState(AnimState a)
     {
-        WriteBool(a.Playing);
-        WriteBool(a.Looping);
+        WriteInt(a.Playing);
+        WriteInt(a.Looping);
         WriteInt(a.CurrentFrame);
         WriteInt(a.ProgressTicks);
         WriteInt(a.Scale);

@@ -267,8 +267,8 @@ internal static class FixtureFactory
     {
         return new AnimState
         {
-            Playing = false,
-            Looping = false,
+            Playing = 0,
+            Looping = 0,
             CurrentFrame = 0,
             ProgressTicks = 0,
             Scale = 0,

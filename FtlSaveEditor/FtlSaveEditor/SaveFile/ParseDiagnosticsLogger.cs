@@ -23,7 +23,8 @@ internal static class ParseDiagnosticsLogger
             ? "unknown.sav"
             : Path.GetFileName(sourcePath);
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss_fff");
-        var logPath = Path.Combine(baseDir, $"{timestamp}_{sourceName}.log");
+        var guid = Guid.NewGuid().ToString("N")[..8];
+        var logPath = Path.Combine(baseDir, $"{timestamp}_{guid}_{sourceName}.log");
 
         using var writer = new StreamWriter(logPath);
         writer.WriteLine($"Timestamp: {DateTime.Now:O}");
