@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using FtlSaveEditor.Models;
 using FtlSaveEditor.SaveFile;
 
@@ -54,6 +55,8 @@ public class FileService
         return files;
     }
 
+    private const int MaxBackups = 3;
+
     public static string CreateBackup(string filePath)
     {
         if (!File.Exists(filePath))
@@ -74,7 +77,29 @@ public class FileService
         }
 
         File.Copy(filePath, backupPath);
+        PruneOldBackups(dir, baseName, ext);
         return backupPath;
+    }
+
+    private static void PruneOldBackups(string dir, string baseName, string ext)
+    {
+        try
+        {
+            var pattern = $"{baseName}_backup_*{ext}";
+            var backups = Directory.GetFiles(dir, pattern)
+                .OrderByDescending(File.GetLastWriteTime)
+                .Skip(MaxBackups)
+                .ToArray();
+
+            foreach (var old in backups)
+            {
+                File.Delete(old);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup — don't fail the save operation if pruning fails.
+        }
     }
 
     public static SavedGameState LoadSaveFile(string filePath)

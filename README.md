@@ -10,27 +10,37 @@ C# WPF application targeting Windows (`.NET 8`).
 
 | Mode | Editable Fields | When Used |
 |------|----------------|-----------|
-| **Full** | Everything (ship, crew, systems, weapons, drones, augments, cargo, beacons, environment) | Vanilla and Hyperspace saves that parse completely |
-| **Partial** | Ship resources (hull, fuel, scrap, missiles, drone parts), weapons, drones, augments, state variables, metadata | Hyperspace/Multiverse saves (format 11) |
+| **Full** | Everything (ship, crew, systems, weapons, drones, augments, cargo, beacons, environment) | Vanilla saves (formats 2, 7, 8, 9) |
+| **Partial** | Ship, crew, weapons, drones, augments, state variables, metadata | Hyperspace/Multiverse saves (format 11) |
 | **Restricted** | Metadata and state variables only | Fallback when both full and partial parsing fail |
 
 ### Multiverse / Hyperspace Support
 
-Hyperspace and Multiverse mods extend FTL's binary save format with custom data at multiple injection points (per-crew-member extensions, room stat boosts, temporal systems, hidden augments, seed data, etc.). Full semantic parsing of all these extensions is impractical.
+Hyperspace and Multiverse mods extend FTL's binary save format with custom data at multiple injection points. **Partial mode** handles this by:
 
-**Partial mode** solves this by:
-1. Parsing the ship header fields (hull, fuel, scrap, missiles, drone parts) which use the vanilla format
-2. Preserving crew, systems, and room data as opaque bytes (contains Hyperspace extensions)
-3. Using a heuristic scanner to locate and parse the weapons, drones, and augments sections
-4. Preserving all remaining data (cargo, sector map, encounters, etc.) as opaque bytes
+1. Parsing the ship header (hull, fuel, scrap, missiles, drone parts)
+2. Parsing crew members — vanilla fields are editable, HS inline extensions are preserved as opaque blobs
+3. Using a heuristic scanner to locate and parse weapons, drones, and augments
+4. Preserving systems, rooms, cargo, sector map, and encounters as opaque bytes
 
-This gives you safe editability of ship resources and loadout while guaranteeing perfect round-trip fidelity for all Hyperspace extension data.
+This gives you safe editability of ship resources, crew, and loadout while guaranteeing perfect byte-for-byte round-trip fidelity for all Hyperspace extension data.
+
+### Editable in Partial Mode
+
+| Section | Editable Fields |
+|---------|----------------|
+| **Metadata** | Difficulty, ship name, blueprint, sector number, stats |
+| **State Variables** | All quest/progression key-value pairs |
+| **Ship** | Hull, fuel, scrap, missiles, drone parts |
+| **Crew** | Name, race, health, all 6 skills, masteries, position, stats |
+| **Weapons** | Weapon IDs, armed state (add/remove supported) |
+| **Drones** | Drone IDs, armed state, position (add/remove supported) |
+| **Augments** | Augment IDs (add/remove supported) |
 
 ### Other Features
 
 - Automatic backups before every save (timestamped, collision-safe)
 - Parse diagnostics logged to `%LOCALAPPDATA%\FtlSaveEditor\logs\`
-- Debug logging always active via `System.Diagnostics.Debug`
 - Auto-detection of save files (`continue.sav`, `hs_continue.sav`, `hs_mv_continue.sav`)
 - Dark-themed WPF UI with sidebar navigation
 
@@ -49,11 +59,30 @@ continue_backup_2026-02-21_12-34-56-123.sav
 
 ## Known Limitations
 
-- **Crew editing** is not available in partial mode. Hyperspace prepends 68+ bytes of custom data (health, powers, stat boosts, teleport state, etc.) before each crew member's vanilla data, making crew parsing infeasible without full Hyperspace format support.
-- **Systems editing** is not available in partial mode for the same reason (Hyperspace temporal system extensions, etc.).
-- **Cargo, beacons, and environment editing** are not available in partial mode (these sections follow HS extension data that cannot be reliably parsed).
-- Room/door semantic editing is not implemented; raw room/door bytes are preserved for round-trip safety.
+- **Systems editing** is not available in partial mode (ship systems are inside the opaque post-crew blob alongside HS room stat boosts and temporal system data).
+- **Cargo, beacons, and environment editing** are not available in partial mode (these are in the opaque tail after augments).
+- Room/door semantic editing is not implemented in any mode; raw bytes are preserved for round-trip safety.
 - Weapon/drone/augment detection uses a heuristic scanner. In rare cases this could find a false positive, but the round-trip test ensures no data corruption.
+
+## Hyperspace Crew Extension Format
+
+Empirically reverse-engineered through binary analysis of Multiverse saves:
+
+Hyperspace injects extension data **inline** within each crew member, between `universalDeathCount` and the mastery bools:
+
+```
+[vanilla fields: name, race, health, skills, ... universalDeathCount]
+[HS extension: sentinels(-1000,-1000) | powers | resources | origColorRace | origRace | customTele | boosts | 6 extras]
+[vanilla fields: 12 mastery bools | unknownNu | teleportAnim | unknownPhi]
+```
+
+Key findings:
+- **Crystal lockdown** does not exist in HS format (handled by HS crew powers instead)
+- **Power data is variable-length** — some powers contain embedded animation strings (92-155 bytes)
+- The **doubled race string** (origColorRace + origRace matching the crew's own race) is the reliable anchor for locating extension boundaries
+- Post-string gap is always 44 bytes (11 ints) across all crew
+
+The parser preserves all HS extension bytes as opaque blobs (`HsInlinePreStringBytes`, `HsInlinePostStringBytes`) while exposing vanilla crew fields for editing.
 
 ## Build
 
@@ -70,6 +99,14 @@ To publish a self-contained executable:
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained
 ```
+
+## Tests
+
+```bash
+dotnet test ftl-save-editor.sln
+```
+
+Tests include round-trip fidelity checks for both vanilla and HS/MV saves, crew edit persistence verification, and heuristic scanner regression tests.
 
 ## Save File Location
 
@@ -95,8 +132,8 @@ FtlSaveEditor/
     SaveData.cs        - All data model classes (SavedGameState, ShipState, CrewState, etc.)
     Enums.cs           - SystemType, Difficulty, FleetPresence, etc.
   SaveFile/
-    SaveFileParser.cs  - Binary save reader (BinaryReader), heuristic weapon scanner
-    SaveFileWriter.cs  - Binary save writer (BinaryWriter), mode-dispatched
+    SaveFileParser.cs  - Binary save reader, heuristic weapon scanner, HS crew parser
+    SaveFileWriter.cs  - Binary save writer, mode-dispatched (full/partial/restricted)
     ShipLayouts.cs     - Hardcoded vanilla ship room square counts
   Services/
     SaveEditorState.cs - Singleton state holder, dirty flag, mode display
