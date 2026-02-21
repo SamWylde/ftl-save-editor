@@ -114,9 +114,17 @@ public partial class CrewEditor : UserControl
         AddFieldRow(basicGrid, ref row, 0, "Name", crew.Name, v => crew.Name = v);
         AddFieldRow(basicGrid, ref row, 0, "Race", crew.Race, v => crew.Race = v);
 
+        bool isHs = crew.HsInlinePreStringBytes.Length > 0;
+
         row = 0;
-        AddIntFieldRow(basicGrid, ref row, 3, "Health", crew.Health, v => crew.Health = v);
-        AddIntFieldRow(basicGrid, ref row, 3, "Health Boost", crew.HealthBoost, v => crew.HealthBoost = v);
+        AddIntFieldRow(basicGrid, ref row, 3, "Health", crew.Health, v =>
+        {
+            crew.Health = v;
+            // Hyperspace uses HealthBoost as actual HP * 1000
+            if (isHs) crew.HealthBoost = v * 1000;
+        });
+        if (!isHs)
+            AddIntFieldRow(basicGrid, ref row, 3, "Health Boost", crew.HealthBoost, v => crew.HealthBoost = v);
 
         content.Children.Add(basicGrid);
         content.Children.Add(new Separator
@@ -205,10 +213,14 @@ public partial class CrewEditor : UserControl
         AddIntFieldRow(statsGrid, ref stRow, 0, "Masteries Earned", crew.SkillMasteriesEarned, v => crew.SkillMasteriesEarned = v);
 
         stRow = 0;
-        AddIntFieldRow(statsGrid, ref stRow, 3, "Stun Ticks", crew.StunTicks, v => crew.StunTicks = v);
-        AddIntFieldRow(statsGrid, ref stRow, 3, "Damage Boost", crew.DamageBoost, v => crew.DamageBoost = v);
-        AddIntFieldRow(statsGrid, ref stRow, 3, "Clonebay Priority", crew.ClonebayPriority, v => crew.ClonebayPriority = v);
-        AddIntFieldRow(statsGrid, ref stRow, 3, "Death Count", crew.UniversalDeathCount, v => crew.UniversalDeathCount = v);
+        if (!isHs)
+        {
+            // These fields are repurposed by Hyperspace (sentinel values, not meaningful)
+            AddIntFieldRow(statsGrid, ref stRow, 3, "Stun Ticks", crew.StunTicks, v => crew.StunTicks = v);
+            AddIntFieldRow(statsGrid, ref stRow, 3, "Damage Boost", crew.DamageBoost, v => crew.DamageBoost = v);
+            AddIntFieldRow(statsGrid, ref stRow, 3, "Clonebay Priority", crew.ClonebayPriority, v => crew.ClonebayPriority = v);
+            AddIntFieldRow(statsGrid, ref stRow, 3, "Death Count", crew.UniversalDeathCount, v => crew.UniversalDeathCount = v);
+        }
 
         content.Children.Add(statsGrid);
 

@@ -225,15 +225,20 @@ public partial class MainWindow : Window
             return;
         }
 
-        var primaryWarning = gs.ParseWarnings[0];
-        var diagnosticPath = gs.ParseDiagnostics.Count > 0 ? gs.ParseDiagnostics[0].LogPath : null;
+        // Partial mode for HS/MV saves is expected — the banner is sufficient.
+        // Only show a popup for unexpected modes (restricted fallback).
+        if (gs.ParseMode == SaveParseMode.RestrictedOpaqueTail)
+        {
+            var primaryWarning = gs.ParseWarnings[0];
+            var diagnosticPath = gs.ParseDiagnostics.Count > 0 ? gs.ParseDiagnostics[0].LogPath : null;
 
-        var warningText = diagnosticPath == null
-            ? primaryWarning
-            : $"{primaryWarning}\n\nDiagnostic log:\n{diagnosticPath}";
+            var warningText = diagnosticPath == null
+                ? primaryWarning
+                : $"{primaryWarning}\n\nDiagnostic log:\n{diagnosticPath}";
 
-        MessageBox.Show(warningText, "Loaded With Warnings",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(warningText, "Loaded With Warnings",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void NavigateTo(string section)

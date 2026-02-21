@@ -89,10 +89,13 @@ public class SaveFileParser
                     var partialState = TryParsePartialPlayerShip(header, data);
                     if (partialState != null)
                     {
+                        bool crewParsed = (partialState.Capabilities & EditorCapability.Crew) != 0;
+                        var editableList = crewParsed
+                            ? "ship, crew, weapons, drones, and augments"
+                            : "ship, weapons, drones, and augments";
                         var partialWarning =
-                            $"Full parse failed ({fullDiagnostic.Section}, offset {fullDiagnostic.ByteOffset?.ToString() ?? "unknown"}). " +
-                            $"Loaded in partial mode: player ship is editable, other sections preserved as opaque data. " +
-                            $"Full parse log: {fullLogPath}";
+                            $"Hyperspace/Multiverse save loaded in partial mode. " +
+                            $"Editable: {editableList}. Other sections preserved as-is.";
                         partialState.ParseWarnings.Add(partialWarning);
                         partialState.ParseDiagnostics.Add(fullDiagnostic);
                         return partialState;
