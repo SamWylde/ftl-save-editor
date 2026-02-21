@@ -73,7 +73,8 @@ public partial class WeaponsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Weapon ID (editable ComboBox with suggestions)
+        // Weapon ID (editable ComboBox with suggestions) + blueprint info
+        var idPanel = new StackPanel();
         var idBox = new ComboBox
         {
             IsEditable = true,
@@ -81,14 +82,24 @@ public partial class WeaponsEditor : UserControl
             ItemsSource = GetWeaponSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        var infoTb = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+            Margin = new Thickness(2, 2, 0, 0)
+        };
+        UpdateWeaponInfo(weapon.WeaponId, infoTb);
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
                 weapon.WeaponId = idBox.Text;
                 _state.MarkDirty();
+                UpdateWeaponInfo(idBox.Text, infoTb);
             }));
-        Grid.SetColumn(idBox, 1);
-        grid.Children.Add(idBox);
+        idPanel.Children.Add(idBox);
+        idPanel.Children.Add(infoTb);
+        Grid.SetColumn(idPanel, 1);
+        grid.Children.Add(idPanel);
 
         // Armed
         var armedChk = new CheckBox
@@ -153,7 +164,24 @@ public partial class WeaponsEditor : UserControl
         var ship = _state.GameState?.PlayerShip;
         var saveIds = ship?.Weapons.Select(w => w.WeaponId).Where(id => !string.IsNullOrEmpty(id)) ?? [];
         var cargoIds = _state.GameState?.CargoIdList.Where(id => !string.IsNullOrEmpty(id)) ?? [];
-        return ItemIds.Weapons.Concat(saveIds).Concat(cargoIds).Distinct().OrderBy(id => id).ToArray();
+        var modIds = _state.Blueprints.Weapons.Keys;
+        return ItemIds.Weapons.Concat(saveIds).Concat(cargoIds).Concat(modIds)
+            .Distinct().OrderBy(id => id).ToArray();
+    }
+
+    private void UpdateWeaponInfo(string id, TextBlock infoTb)
+    {
+        if (_state.Blueprints.Weapons.TryGetValue(id, out var bp))
+        {
+            infoTb.Text = $"{bp.Title}  |  {bp.Type}  {bp.Damage}dmg x{bp.Shots}  {bp.Power}pwr  {bp.Cooldown}s  {bp.Cost}scrap";
+            infoTb.ToolTip = string.IsNullOrEmpty(bp.Description) ? null : bp.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            infoTb.Text = "";
+            infoTb.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void AddWeapon_Click(object sender, RoutedEventArgs e)

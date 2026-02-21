@@ -39,6 +39,17 @@ This gives you safe editability of ship resources, crew, systems, and loadout wh
 | **Drones** | Drone IDs, armed state, position (add/remove supported) |
 | **Augments** | Augment IDs (add/remove supported) |
 
+### Multiverse Mod Blueprint Integration
+
+The editor auto-detects your FTL installation and scans Multiverse/Hyperspace mod ZIP files for weapon, drone, and augment blueprints. This populates the item dropdowns with **all mod items** (800+ weapons, 180+ drones, 550+ augments) instead of just vanilla IDs.
+
+Each item shows its **title, type, stats, and description** inline — so you know exactly what you're equipping or replacing.
+
+Supported mod file locations:
+- GOG: `D:\GOG\Games\FTL Advanced Edition\mods\`
+- Steam: `...\steamapps\common\FTL Faster Than Light\mods\`
+- Custom: Create `%LOCALAPPDATA%\FtlSaveEditor\settings.txt` with your FTL install path
+
 ### Other Features
 
 - In-app Help / Info panel with parse mode details and save format documentation
@@ -137,9 +148,13 @@ FtlSaveEditor/
     SaveFileParser.cs  - Binary save reader, heuristic weapon scanner, HS crew/system parser
     SaveFileWriter.cs  - Binary save writer, mode-dispatched (full/partial/restricted)
     ShipLayouts.cs     - Hardcoded vanilla ship room square counts
+  Data/
+    ItemIds.cs         - Vanilla weapon/drone/augment ID lists (fallback)
+    BlueprintData.cs   - Data models for parsed mod blueprints
   Services/
     SaveEditorState.cs - Singleton state holder, dirty flag, mode display
     FileService.cs     - Save detection, open/save, backup management
+    ModBlueprintScanner.cs - Auto-detects FTL install, parses mod ZIP blueprints
   Views/
     11 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc, Help
 ```

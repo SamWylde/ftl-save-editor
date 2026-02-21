@@ -5,6 +5,7 @@ using System.IO;
 using Xunit;
 using Xunit.Abstractions;
 using FtlSaveEditor.SaveFile;
+using FtlSaveEditor.Services;
 
 public class HsFormatAnalysis
 {
@@ -53,5 +54,31 @@ public class HsFormatAnalysis
         }
 
         _output.WriteLine($"\nTotal 4-byte-word differences: {diffCount}");
+    }
+
+    [Fact]
+    public void ModBlueprintScanner_FindsBlueprints()
+    {
+        var gamePath = ModBlueprintScanner.DetectGamePath();
+        if (gamePath == null)
+        {
+            _output.WriteLine("Game path not found, skipping");
+            return;
+        }
+        _output.WriteLine($"Game path: {gamePath}");
+
+        var bp = ModBlueprintScanner.Scan();
+        _output.WriteLine($"Weapons: {bp.Weapons.Count}");
+        _output.WriteLine($"Drones: {bp.Drones.Count}");
+        _output.WriteLine($"Augments: {bp.Augments.Count}");
+
+        foreach (var kv in bp.Weapons.Take(5))
+            _output.WriteLine($"  W: {kv.Key} = {kv.Value.Title} ({kv.Value.Type}, {kv.Value.Damage}dmg x{kv.Value.Shots})");
+        foreach (var kv in bp.Drones.Take(3))
+            _output.WriteLine($"  D: {kv.Key} = {kv.Value.Title} ({kv.Value.Type}, {kv.Value.Power}pwr)");
+        foreach (var kv in bp.Augments.Take(3))
+            _output.WriteLine($"  A: {kv.Key} = {kv.Value.Title} ({kv.Value.Cost}scrap)");
+
+        Assert.True(bp.HasData, "Expected blueprints to be found in mod files");
     }
 }
