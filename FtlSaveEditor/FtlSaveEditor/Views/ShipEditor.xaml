@@ -1,0 +1,143 @@
+<UserControl x:Class="FtlSaveEditor.Views.ShipEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <!-- Header -->
+        <TextBlock Text="Ship Editor" FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,16"/>
+
+        <!-- Ship Identity Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SHIP IDENTITY" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,12"
+                           />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Ship Name" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="ShipNameBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <Label Content="Blueprint ID" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="BlueprintIdBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <Label Content="GFX Base Name" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="GfxBaseNameBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Resources Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="RESOURCES" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,12"
+                           />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="120"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Hull" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="HullBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <Label Content="Scrap" Grid.Row="0" Grid.Column="3" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="ScrapBox" Grid.Row="0" Grid.Column="4" Margin="0,0,0,8"/>
+
+                    <Label Content="Fuel" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="FuelBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+
+                    <Label Content="Missiles" Grid.Row="1" Grid.Column="3" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="MissilesBox" Grid.Row="1" Grid.Column="4" Margin="0,0,0,8"/>
+
+                    <Label Content="Drone Parts" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="DronePartsBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,0"/>
+
+                    <Label Content="Reserve Power" Grid.Row="2" Grid.Column="3" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="ReservePowerBox" Grid.Row="2" Grid.Column="4" Margin="0,0,0,0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Ship Status Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SHIP STATUS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,12"
+                           />
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Hostile" Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <CheckBox x:Name="HostileCheck" Grid.Row="0" Grid.Column="1" VerticalAlignment="Center"
+                              Margin="0,0,0,8"/>
+
+                    <Label Content="Jumping" Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <CheckBox x:Name="JumpingCheck" Grid.Row="1" Grid.Column="1" VerticalAlignment="Center"
+                              Margin="0,0,0,8"/>
+
+                    <Label Content="Jump Charge" Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="JumpChargeBox" Grid.Row="2" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Jump Anim Ticks" Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="JumpAnimBox" Grid.Row="3" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Cloak Anim Ticks" Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBox x:Name="CloakAnimBox" Grid.Row="4" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,0"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
