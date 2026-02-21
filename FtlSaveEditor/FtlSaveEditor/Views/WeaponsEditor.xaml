@@ -1,0 +1,50 @@
+<UserControl x:Class="FtlSaveEditor.Views.WeaponsEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <!-- Header -->
+        <DockPanel Margin="0,0,0,16">
+            <TextBlock Text="Weapons Editor" FontSize="22" FontWeight="Bold"
+                       Foreground="{StaticResource AccentBlueBrush}" VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="AddWeaponBtn" Content="+ Add Weapon" Style="{StaticResource DarkButton}"
+                        Margin="0,0,8,0"/>
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Column headers -->
+        <Border Background="{StaticResource BgLightBrush}" CornerRadius="4,4,0,0"
+                Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="70"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="#" Grid.Column="0" FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <TextBlock Text="Weapon ID" Grid.Column="1" FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource AccentBlueBrush}"/>
+                <TextBlock Text="Armed" Grid.Column="2" FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource AccentGreenBrush}"/>
+                <TextBlock Text="Cooldown" Grid.Column="3" FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource AccentOrangeBrush}"/>
+                <TextBlock Text="Remove" Grid.Column="4" FontWeight="SemiBold" FontSize="11"
+                           Foreground="{StaticResource AccentRedBrush}" TextAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Weapon rows -->
+        <StackPanel x:Name="WeaponListPanel"/>
+
+        <!-- Empty state -->
+        <TextBlock x:Name="EmptyText" Text="No weapons installed"
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="13"
+                   Margin="12,16,0,0" Visibility="Collapsed"/>
+    </StackPanel>
+</UserControl>

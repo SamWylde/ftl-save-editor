@@ -1,0 +1,17 @@
+# Claude Code
+.claude/
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings.user
+
+# Build output
+publish/
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,240 @@
+<UserControl x:Class="FtlSaveEditor.Views.MiscEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <!-- Header -->
+        <TextBlock Text="Environment / Misc" FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,4"/>
+        <TextBlock Text="Game settings, sector info, rebel fleet, environment hazards, encounter state, and flagship"
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,16"/>
+
+        <!-- Game Settings Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="GAME SETTINGS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,12"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Difficulty" Grid.Row="0" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="DifficultyCombo" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"
+                              Background="{StaticResource BgDarkBrush}"
+                              Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                    <Label Content="DLC Enabled" Grid.Row="1" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="DlcEnabledCheck" Grid.Row="1" Grid.Column="1"
+                              VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                    <Label Content="Autofire" Grid.Row="2" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="AutofireCheck" Grid.Row="2" Grid.Column="1"
+                              VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                    <Label Content="File Format" Grid.Row="3" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FileFormatBox" Grid.Row="3" Grid.Column="1" Width="80"
+                             HorizontalAlignment="Left" Margin="0,0,0,0"/>
+
+                    <Label Content="Sector Number" Grid.Row="0" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="SectorNumberBox" Grid.Row="0" Grid.Column="4" Width="80"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Sector (1-based)" Grid.Row="1" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="OneBasedSectorBox" Grid.Row="1" Grid.Column="4" Width="80"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Current Beacon" Grid.Row="2" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="CurrentBeaconBox" Grid.Row="2" Grid.Column="4" Width="80"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Hidden Crystal" Grid.Row="3" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="CrystalWorldsCheck" Grid.Row="3" Grid.Column="4"
+                              VerticalAlignment="Center"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Sector Seeds Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SECTOR SEEDS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,12"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Sector Tree Seed" Grid.Row="0" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TreeSeedBox" Grid.Row="0" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left"/>
+
+                    <Label Content="Layout Seed" Grid.Row="0" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="LayoutSeedBox" Grid.Row="0" Grid.Column="4" Width="120"
+                             HorizontalAlignment="Left"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Rebel Fleet Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="REBEL FLEET" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,12"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Fleet Offset" Grid.Row="0" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FleetOffsetBox" Grid.Row="0" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Fleet Fudge" Grid.Row="1" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FleetFudgeBox" Grid.Row="1" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                    <Label Content="Pursuit Mod" Grid.Row="2" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="PursuitModBox" Grid.Row="2" Grid.Column="1" Width="120"
+                             HorizontalAlignment="Left" Margin="0,0,0,0"/>
+
+                    <Label Content="Flagship Visible" Grid.Row="0" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="FlagshipVisibleCheck" Grid.Row="0" Grid.Column="4"
+                              VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                    <Label Content="Flagship Moving" Grid.Row="1" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="FlagshipMovingCheck" Grid.Row="1" Grid.Column="4"
+                              VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                    <Label Content="Flagship Retreating" Grid.Row="2" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="FlagshipRetreatingCheck" Grid.Row="2" Grid.Column="4"
+                              VerticalAlignment="Center"/>
+                </Grid>
+
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="40"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="160"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Label Content="Flagship Hop" Grid.Row="0" Grid.Column="0"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FlagshipHopBox" Grid.Row="0" Grid.Column="1" Width="80"
+                             HorizontalAlignment="Left"/>
+
+                    <Label Content="Base Turns" Grid.Row="0" Grid.Column="3"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                    <TextBox x:Name="FlagshipBaseTurnsBox" Grid.Row="0" Grid.Column="4" Width="80"
+                             HorizontalAlignment="Left"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Environment Hazards Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
+                      Background="Transparent" BorderThickness="0">
+                <Expander.Header>
+                    <TextBlock Text="ENVIRONMENT HAZARDS" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                </Expander.Header>
+                <StackPanel x:Name="EnvironmentPanel" Margin="0,12,0,0"/>
+            </Expander>
+        </Border>
+
+        <!-- Encounter Info Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
+                      Background="Transparent" BorderThickness="0">
+                <Expander.Header>
+                    <TextBlock Text="ENCOUNTER STATE" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                </Expander.Header>
+                <StackPanel x:Name="EncounterPanel" Margin="0,12,0,0"/>
+            </Expander>
+        </Border>
+
+        <!-- Flagship State Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
+                      Background="Transparent" BorderThickness="0">
+                <Expander.Header>
+                    <TextBlock Text="REBEL FLAGSHIP STATE" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentRedBrush}"/>
+                </Expander.Header>
+                <StackPanel x:Name="FlagshipPanel" Margin="0,12,0,0"/>
+            </Expander>
+        </Border>
+
+        <!-- Game Stats Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
+                      Background="Transparent" BorderThickness="0">
+                <Expander.Header>
+                    <TextBlock Text="GAME STATS" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentGreenBrush}"/>
+                </Expander.Header>
+                <StackPanel x:Name="StatsPanel" Margin="0,12,0,0"/>
+            </Expander>
+        </Border>
+    </StackPanel>
+</UserControl>
