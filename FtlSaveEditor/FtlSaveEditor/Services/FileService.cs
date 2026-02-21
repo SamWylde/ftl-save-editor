@@ -56,11 +56,23 @@ public class FileService
 
     public static string CreateBackup(string filePath)
     {
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException("Cannot create backup for a missing file.", filePath);
+        }
+
         var dir = System.IO.Path.GetDirectoryName(filePath)!;
         var ext = System.IO.Path.GetExtension(filePath);
         var baseName = System.IO.Path.GetFileNameWithoutExtension(filePath);
-        var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+        var timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
         var backupPath = System.IO.Path.Combine(dir, $"{baseName}_backup_{timestamp}{ext}");
+        int sequence = 1;
+        while (File.Exists(backupPath))
+        {
+            backupPath = System.IO.Path.Combine(dir, $"{baseName}_backup_{timestamp}_{sequence}{ext}");
+            sequence++;
+        }
+
         File.Copy(filePath, backupPath);
         return backupPath;
     }
@@ -69,7 +81,7 @@ public class FileService
     {
         var data = File.ReadAllBytes(filePath);
         var parser = new SaveFileParser();
-        return parser.Parse(data);
+        return parser.Parse(data, sourcePath: filePath);
     }
 
     public static void WriteSaveFile(string filePath, SavedGameState state)

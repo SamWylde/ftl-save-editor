@@ -1,0 +1,76 @@
+<UserControl x:Class="FtlSaveEditor.Views.MetadataEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <TextBlock Text="Metadata" FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,4"/>
+        <TextBlock Text="Safe fields persisted in restricted mode (header + state vars)."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,16"/>
+
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,6,12,6" Text="File Format"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,6,0,6" x:Name="FileFormatText"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,6,12,6" Text="Player Ship Name"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Margin="0,6,0,6" x:Name="PlayerShipNameBox"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,6,12,6" Text="Player Ship Blueprint ID"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Margin="0,6,0,6" x:Name="PlayerShipBlueprintIdBox"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Margin="0,6,12,6" Text="Difficulty"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Margin="0,6,0,6" x:Name="DifficultyBox"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,6,12,6" Text="Total Ships Defeated"/>
+                <TextBox Grid.Row="4" Grid.Column="1" Margin="0,6,0,6" x:Name="TotalShipsDefeatedBox"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,6,12,6" Text="Total Beacons Explored"/>
+                <TextBox Grid.Row="5" Grid.Column="1" Margin="0,6,0,6" x:Name="TotalBeaconsExploredBox"/>
+
+                <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,6,12,6" Text="Total Scrap Collected"/>
+                <TextBox Grid.Row="6" Grid.Column="1" Margin="0,6,0,6" x:Name="TotalScrapCollectedBox"/>
+
+                <TextBlock Grid.Row="7" Grid.Column="0" Margin="0,6,12,6" Text="Total Crew Hired"/>
+                <TextBox Grid.Row="7" Grid.Column="1" Margin="0,6,0,6" x:Name="TotalCrewHiredBox"/>
+
+                <TextBlock Grid.Row="8" Grid.Column="0" Margin="0,6,12,6" Text="One-Based Sector Number"/>
+                <TextBox Grid.Row="8" Grid.Column="1" Margin="0,6,0,6" x:Name="OneBasedSectorNumberBox"/>
+
+                <TextBlock Grid.Row="9" Grid.Column="0" Margin="0,6,12,6" Text="Unknown Beta"/>
+                <TextBox Grid.Row="9" Grid.Column="1" Margin="0,6,0,6" x:Name="UnknownBetaBox"/>
+
+                <TextBlock Grid.Row="10" Grid.Column="0" Margin="0,6,12,6" Text="DLC Enabled"/>
+                <CheckBox Grid.Row="10" Grid.Column="1" Margin="0,6,0,6" x:Name="DlcEnabledCheck"/>
+
+                <TextBlock Grid.Row="11" Grid.Column="0" Margin="0,6,12,6" Text="Random Native"/>
+                <CheckBox Grid.Row="11" Grid.Column="1" Margin="0,6,0,6" x:Name="RandomNativeCheck"/>
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

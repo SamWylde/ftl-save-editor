@@ -2,8 +2,55 @@ using System.Collections.Generic;
 
 namespace FtlSaveEditor.Models;
 
+[System.Flags]
+public enum EditorCapability
+{
+    None = 0,
+    Metadata = 1 << 0,
+    StateVars = 1 << 1,
+    Ship = 1 << 2,
+    Crew = 1 << 3,
+    Systems = 1 << 4,
+    Weapons = 1 << 5,
+    Drones = 1 << 6,
+    Augments = 1 << 7,
+    Cargo = 1 << 8,
+    Beacons = 1 << 9,
+    Misc = 1 << 10,
+    Full =
+        StateVars |
+        Ship |
+        Crew |
+        Systems |
+        Weapons |
+        Drones |
+        Augments |
+        Cargo |
+        Beacons |
+        Misc
+}
+
+public enum SaveParseMode
+{
+    Full,
+    RestrictedOpaqueTail
+}
+
+public class ParseDiagnostic
+{
+    public string Section { get; set; } = "";
+    public long? ByteOffset { get; set; }
+    public string Message { get; set; } = "";
+    public string? LogPath { get; set; }
+}
+
 public class SavedGameState
 {
+    public SaveParseMode ParseMode { get; set; } = SaveParseMode.Full;
+    public byte[] OpaqueTailBytes { get; set; } = [];
+    public EditorCapability Capabilities { get; set; } = EditorCapability.Full;
+    public List<string> ParseWarnings { get; set; } = new();
+    public List<ParseDiagnostic> ParseDiagnostics { get; set; } = new();
     public int FileFormat { get; set; }
     public bool RandomNative { get; set; }
     public bool DlcEnabled { get; set; }
@@ -78,6 +125,7 @@ public class ShipState
     public string ShipBlueprintId { get; set; } = "";
     public string ShipName { get; set; } = "";
     public string ShipGfxBaseName { get; set; } = "";
+    public string? ExtraShipStringBeforeCrew { get; set; }
     public List<StartingCrewMember> StartingCrew { get; set; } = new();
     public bool Hostile { get; set; }
     public int JumpChargeTicks { get; set; }
@@ -100,6 +148,7 @@ public class ShipState
     public List<DoorState> Doors { get; set; } = new();
     public int CloakAnimTicks { get; set; }
     public List<LockdownCrystal> LockdownCrystals { get; set; } = new();
+    public byte[] OpaqueRoomDoorBytes { get; set; } = [];
     public List<WeaponState> Weapons { get; set; } = new();
     public List<DroneState> Drones { get; set; } = new();
     public List<string> AugmentIds { get; set; } = new();
