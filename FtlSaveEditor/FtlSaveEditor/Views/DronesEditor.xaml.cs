@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
 using FtlSaveEditor.Services;
 
@@ -76,17 +78,20 @@ public partial class DronesEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Drone ID
-        var idBox = new TextBox
+        // Drone ID (editable ComboBox with suggestions)
+        var idBox = new ComboBox
         {
+            IsEditable = true,
             Text = drone.DroneId,
+            ItemsSource = GetDroneSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
-        idBox.TextChanged += (_, _) =>
-        {
-            drone.DroneId = idBox.Text;
-            _state.MarkDirty();
-        };
+        idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new RoutedEventHandler((_, _) =>
+            {
+                drone.DroneId = idBox.Text;
+                _state.MarkDirty();
+            }));
         Grid.SetColumn(idBox, 1);
         grid.Children.Add(idBox);
 
@@ -203,6 +208,13 @@ public partial class DronesEditor : UserControl
         };
     }
 
+    private string[] GetDroneSuggestions()
+    {
+        var ship = _state.GameState?.PlayerShip;
+        var saveIds = ship?.Drones.Select(d => d.DroneId).Where(id => !string.IsNullOrEmpty(id)) ?? [];
+        return ItemIds.Drones.Concat(saveIds).Distinct().OrderBy(id => id).ToArray();
+    }
+
     private void AddDrone_Click(object sender, RoutedEventArgs e)
     {
         var ship = _state.GameState?.PlayerShip;
@@ -210,7 +222,7 @@ public partial class DronesEditor : UserControl
 
         ship.Drones.Add(new DroneState
         {
-            DroneId = "DRONE_COMBAT_1",
+            DroneId = "COMBAT_1",
             Armed = false,
             PlayerControlled = true,
             BodyX = 0,

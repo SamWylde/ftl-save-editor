@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
 using FtlSaveEditor.Services;
 
@@ -71,17 +73,20 @@ public partial class WeaponsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Weapon ID
-        var idBox = new TextBox
+        // Weapon ID (editable ComboBox with suggestions)
+        var idBox = new ComboBox
         {
+            IsEditable = true,
             Text = weapon.WeaponId,
+            ItemsSource = GetWeaponSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
-        idBox.TextChanged += (_, _) =>
-        {
-            weapon.WeaponId = idBox.Text;
-            _state.MarkDirty();
-        };
+        idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new RoutedEventHandler((_, _) =>
+            {
+                weapon.WeaponId = idBox.Text;
+                _state.MarkDirty();
+            }));
         Grid.SetColumn(idBox, 1);
         grid.Children.Add(idBox);
 
@@ -141,6 +146,14 @@ public partial class WeaponsEditor : UserControl
 
         row.Child = grid;
         return row;
+    }
+
+    private string[] GetWeaponSuggestions()
+    {
+        var ship = _state.GameState?.PlayerShip;
+        var saveIds = ship?.Weapons.Select(w => w.WeaponId).Where(id => !string.IsNullOrEmpty(id)) ?? [];
+        var cargoIds = _state.GameState?.CargoIdList.Where(id => !string.IsNullOrEmpty(id)) ?? [];
+        return ItemIds.Weapons.Concat(saveIds).Concat(cargoIds).Distinct().OrderBy(id => id).ToArray();
     }
 
     private void AddWeapon_Click(object sender, RoutedEventArgs e)

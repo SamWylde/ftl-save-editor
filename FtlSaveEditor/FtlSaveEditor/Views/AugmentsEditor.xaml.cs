@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Services;
 
 namespace FtlSaveEditor.Views;
@@ -56,21 +58,24 @@ public partial class AugmentsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Augment ID
+        // Augment ID (editable ComboBox with suggestions)
         int capturedIndex = index;
-        var idBox = new TextBox
+        var idBox = new ComboBox
         {
+            IsEditable = true,
             Text = ship.AugmentIds[index],
+            ItemsSource = GetAugmentSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
-        idBox.TextChanged += (_, _) =>
-        {
-            if (capturedIndex < ship.AugmentIds.Count)
+        idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new RoutedEventHandler((_, _) =>
             {
-                ship.AugmentIds[capturedIndex] = idBox.Text;
-                _state.MarkDirty();
-            }
-        };
+                if (capturedIndex < ship.AugmentIds.Count)
+                {
+                    ship.AugmentIds[capturedIndex] = idBox.Text;
+                    _state.MarkDirty();
+                }
+            }));
         Grid.SetColumn(idBox, 1);
         grid.Children.Add(idBox);
 
@@ -99,6 +104,13 @@ public partial class AugmentsEditor : UserControl
         grid.Children.Add(removeBtn);
 
         return grid;
+    }
+
+    private string[] GetAugmentSuggestions()
+    {
+        var ship = _state.GameState?.PlayerShip;
+        var saveIds = ship?.AugmentIds.Where(id => !string.IsNullOrEmpty(id)) ?? [];
+        return ItemIds.Augments.Concat(saveIds).Distinct().OrderBy(id => id).ToArray();
     }
 
     private void AddAugment_Click(object sender, RoutedEventArgs e)

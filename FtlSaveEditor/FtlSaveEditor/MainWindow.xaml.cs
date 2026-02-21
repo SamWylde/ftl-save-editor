@@ -102,11 +102,25 @@ public partial class MainWindow : Window
 
     private void LoadFile(string path)
     {
+        if (_state.IsDirty)
+        {
+            var confirmResult = MessageBox.Show(
+                "You have unsaved changes. Continue without saving?",
+                "Unsaved Changes", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirmResult != MessageBoxResult.Yes) return;
+        }
+
         try
         {
             _state.LoadFile(path);
             OnFileLoaded();
             ShowParseWarningsIfAny();
+        }
+        catch (System.IO.IOException ioEx)
+        {
+            MessageBox.Show(
+                $"Cannot open — the file may be in use by FTL or another program.\n\n{ioEx.Message}",
+                "File In Use", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch (Exception ex)
         {
@@ -265,6 +279,12 @@ public partial class MainWindow : Window
             _state.SaveFile();
             StatusText.Text = $"Saved to {_state.FilePath}";
         }
+        catch (System.IO.IOException ioEx)
+        {
+            MessageBox.Show(
+                $"Cannot save — the file may be in use by FTL or another program.\n\n{ioEx.Message}",
+                "File In Use", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
         catch (Exception ex)
         {
             MessageBox.Show($"Failed to save:\n\n{ex.Message}", "Error",
@@ -288,6 +308,12 @@ public partial class MainWindow : Window
                 _state.SaveFileAs(dlg.FileName);
                 StatusText.Text = $"Saved to {dlg.FileName}";
             }
+            catch (System.IO.IOException ioEx)
+            {
+                MessageBox.Show(
+                    $"Cannot save — the file may be in use by FTL or another program.\n\n{ioEx.Message}",
+                    "File In Use", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
             catch (Exception ex)
             {
                 MessageBox.Show($"Failed to save:\n\n{ex.Message}", "Error",
@@ -308,7 +334,17 @@ public partial class MainWindow : Window
 
             if (result == MessageBoxResult.Yes)
             {
-                _state.SaveFile();
+                try
+                {
+                    _state.SaveFile();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to save:\n\n{ex.Message}", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    e.Cancel = true;
+                    return;
+                }
             }
             else if (result == MessageBoxResult.Cancel)
             {
