@@ -61,7 +61,15 @@ public class SaveEditorState : INotifyPropertyChanged
             11 => "Format 11 (HS)",
             _ => $"Format {state.FileFormat}"
         };
-        StatusText = $"{fileName} — {formatStr} — {state.PlayerShip.ShipName}";
+
+        var shipName = !string.IsNullOrWhiteSpace(state.PlayerShip.ShipName)
+            ? state.PlayerShip.ShipName
+            : state.PlayerShipName;
+        var modeSuffix = state.ParseMode == SaveParseMode.RestrictedOpaqueTail
+            ? " - Restricted mode"
+            : "";
+
+        StatusText = $"{fileName} - {formatStr} - {shipName}{modeSuffix}";
     }
 
     public void SaveFile()
@@ -74,10 +82,22 @@ public class SaveEditorState : INotifyPropertyChanged
     public void SaveFileAs(string path)
     {
         if (GameState == null) return;
+        if (!string.IsNullOrWhiteSpace(FilePath) &&
+            !string.Equals(FilePath, path, StringComparison.OrdinalIgnoreCase) &&
+            System.IO.File.Exists(FilePath))
+        {
+            // Preserve the currently loaded save before writing to a new destination.
+            FileService.CreateBackup(FilePath);
+        }
+
         FileService.WriteSaveFile(path, GameState);
         FilePath = path;
         IsDirty = false;
-        StatusText = $"{System.IO.Path.GetFileName(path)} — Format {GameState.FileFormat}";
+
+        var modeSuffix = GameState.ParseMode == SaveParseMode.RestrictedOpaqueTail
+            ? " - Restricted mode"
+            : "";
+        StatusText = $"{System.IO.Path.GetFileName(path)} - Format {GameState.FileFormat}{modeSuffix}";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

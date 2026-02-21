@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
     private readonly SaveEditorState _state = SaveEditorState.Instance;
     private string? _activeSection;
     private readonly Dictionary<string, Func<UserControl>> _editors = new();
+    private bool _stateEventsHooked;
 
     public MainWindow()
     {
@@ -69,7 +71,7 @@ public partial class MainWindow : Window
         var size = file.SizeBytes > 1024 ? $"{file.SizeBytes / 1024} KB" : $"{file.SizeBytes} B";
         stack.Children.Add(new TextBlock
         {
-            Text = $"{size} — Modified {file.ModifiedAt:g}",
+            Text = $"{size} - Modified {file.ModifiedAt:g}",
             Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
             FontSize = 12,
             Margin = new Thickness(0, 4, 0, 0)
@@ -104,6 +106,7 @@ public partial class MainWindow : Window
         {
             _state.LoadFile(path);
             OnFileLoaded();
+            ShowParseWarningsIfAny();
         }
         catch (Exception ex)
         {
@@ -114,56 +117,93 @@ public partial class MainWindow : Window
 
     private void OnFileLoaded()
     {
+        if (_state.GameState == null)
+        {
+            return;
+        }
+
         WelcomePanel.Visibility = Visibility.Collapsed;
         EditorPanel.Visibility = Visibility.Visible;
         SaveButton.IsEnabled = true;
         SaveAsButton.IsEnabled = true;
         StatusText.Text = _state.StatusText;
 
-        _state.PropertyChanged += (_, args) =>
+        if (!_stateEventsHooked)
         {
-            if (args.PropertyName == nameof(SaveEditorState.IsDirty))
-            {
-                DirtyIndicator.Visibility = _state.IsDirty ? Visibility.Visible : Visibility.Collapsed;
-            }
-        };
+            _state.PropertyChanged += StateOnPropertyChanged;
+            _stateEventsHooked = true;
+        }
 
-        BuildSidebar();
-        NavigateTo("ship");
+        UpdateParseModeBanner(_state.GameState);
+        var firstSection = BuildSidebar(_state.GameState.Capabilities);
+        if (firstSection != null)
+        {
+            NavigateTo(firstSection);
+        }
     }
 
-    private void BuildSidebar()
+    private void StateOnPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(SaveEditorState.IsDirty))
+        {
+            DirtyIndicator.Visibility = _state.IsDirty ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void UpdateParseModeBanner(SavedGameState gameState)
+    {
+        if (gameState.ParseMode == SaveParseMode.RestrictedOpaqueTail)
+        {
+            ParseModeBanner.Visibility = Visibility.Visible;
+            ParseModeBannerText.Text = "Restricted mode: unsupported sections are preserved as opaque bytes for safe round-trip saving.";
+            return;
+        }
+
+        if (gameState.ParseWarnings.Count > 0)
+        {
+            ParseModeBanner.Visibility = Visibility.Visible;
+            ParseModeBannerText.Text = gameState.ParseWarnings[0];
+            return;
+        }
+
+        ParseModeBanner.Visibility = Visibility.Collapsed;
+        ParseModeBannerText.Text = "";
+    }
+
+    private string? BuildSidebar(EditorCapability capabilities)
     {
         SidebarPanel.Children.Clear();
         _editors.Clear();
 
-        var sections = new (string Key, string Label)[]
+        var sections = new (string Key, string Label, EditorCapability Capability, Func<UserControl> Factory)[]
         {
-            ("ship", "Ship"),
-            ("crew", "Crew"),
-            ("systems", "Systems"),
-            ("weapons", "Weapons"),
-            ("drones", "Drones"),
-            ("augments", "Augments"),
-            ("cargo", "Cargo"),
-            ("statevars", "State Variables"),
-            ("beacons", "Sector Map"),
-            ("misc", "Environment / Misc"),
+            ("metadata", "Metadata", EditorCapability.Metadata, () => new MetadataEditor()),
+            ("ship", "Ship", EditorCapability.Ship, () => new ShipEditor()),
+            ("crew", "Crew", EditorCapability.Crew, () => new CrewEditor()),
+            ("systems", "Systems", EditorCapability.Systems, () => new SystemsEditor()),
+            ("weapons", "Weapons", EditorCapability.Weapons, () => new WeaponsEditor()),
+            ("drones", "Drones", EditorCapability.Drones, () => new DronesEditor()),
+            ("augments", "Augments", EditorCapability.Augments, () => new AugmentsEditor()),
+            ("cargo", "Cargo", EditorCapability.Cargo, () => new CargoEditor()),
+            ("statevars", "State Variables", EditorCapability.StateVars, () => new StateVarsEditor()),
+            ("beacons", "Sector Map", EditorCapability.Beacons, () => new BeaconsEditor()),
+            ("misc", "Environment / Misc", EditorCapability.Misc, () => new MiscEditor()),
         };
 
-        _editors["ship"] = () => new ShipEditor();
-        _editors["crew"] = () => new CrewEditor();
-        _editors["systems"] = () => new SystemsEditor();
-        _editors["weapons"] = () => new WeaponsEditor();
-        _editors["drones"] = () => new DronesEditor();
-        _editors["augments"] = () => new AugmentsEditor();
-        _editors["cargo"] = () => new CargoEditor();
-        _editors["statevars"] = () => new StateVarsEditor();
-        _editors["beacons"] = () => new BeaconsEditor();
-        _editors["misc"] = () => new MiscEditor();
-
-        foreach (var (key, label) in sections)
+        string? firstSection = null;
+        foreach (var (key, label, capability, factory) in sections)
         {
+            if ((capabilities & capability) == 0)
+            {
+                continue;
+            }
+
+            _editors[key] = factory;
+            if (firstSection == null)
+            {
+                firstSection = key;
+            }
+
             var btn = new Button
             {
                 Content = label,
@@ -173,20 +213,39 @@ public partial class MainWindow : Window
             btn.Click += (_, _) => NavigateTo(key);
             SidebarPanel.Children.Add(btn);
         }
+
+        return firstSection;
+    }
+
+    private void ShowParseWarningsIfAny()
+    {
+        var gs = _state.GameState;
+        if (gs == null || gs.ParseWarnings.Count == 0)
+        {
+            return;
+        }
+
+        var primaryWarning = gs.ParseWarnings[0];
+        var diagnosticPath = gs.ParseDiagnostics.Count > 0 ? gs.ParseDiagnostics[0].LogPath : null;
+
+        var warningText = diagnosticPath == null
+            ? primaryWarning
+            : $"{primaryWarning}\n\nDiagnostic log:\n{diagnosticPath}";
+
+        MessageBox.Show(warningText, "Loaded With Warnings",
+            MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void NavigateTo(string section)
     {
         _activeSection = section;
 
-        // Update sidebar highlight
         foreach (Button btn in SidebarPanel.Children)
         {
             btn.Style = (Style)FindResource(
                 (string)btn.Tag == section ? "SidebarButtonActive" : "SidebarButton");
         }
 
-        // Show editor
         EditorPanel.Children.Clear();
         if (_editors.TryGetValue(section, out var factory))
         {
@@ -232,7 +291,7 @@ public partial class MainWindow : Window
         }
     }
 
-    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
         if (_state.IsDirty)
         {
@@ -252,6 +311,7 @@ public partial class MainWindow : Window
                 return;
             }
         }
+
         base.OnClosing(e);
     }
 }

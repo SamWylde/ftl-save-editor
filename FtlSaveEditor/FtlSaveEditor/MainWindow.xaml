@@ -59,6 +59,20 @@
                           HorizontalScrollBarVisibility="Disabled">
                 <Border Padding="20">
                     <StackPanel x:Name="ContentPanel">
+                        <Border x:Name="ParseModeBanner"
+                                Background="{StaticResource BgMediumBrush}"
+                                BorderBrush="{StaticResource AccentOrangeBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12,10"
+                                Margin="0,0,0,12"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="ParseModeBannerText"
+                                       Foreground="{StaticResource AccentOrangeBrush}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+
                         <!-- Welcome screen (shown when no file loaded) -->
                         <StackPanel x:Name="WelcomePanel">
                             <TextBlock Text="FTL Save Editor" FontSize="28" FontWeight="Bold"

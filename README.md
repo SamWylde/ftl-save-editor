@@ -1,68 +1,51 @@
 # FTL Save Editor
 
-Desktop save game editor for FTL: Faster Than Light. C# WPF (.NET 8) application targeting Windows.
+Desktop save game editor for FTL: Faster Than Light.
+C# WPF application targeting Windows (`.NET 8`).
 
-## Status
+## Current Status
 
-**Work in progress — the parser does not fully work yet.**
+This project now supports two safe parse/write modes:
 
-### What works
-- App builds and launches (dark-themed WPF window)
-- Binary parser reads: file header, ship header, crew members, system states, extended system info (clonebay, battery, shields, cloaking)
-- All crew names, races, skills, and stats parse correctly
-- All 16 system types parse correctly (capacity, power, damage, etc.)
-- Weapon, drone, and augment ID strings are located in the binary data
+- `Full` mode (vanilla-compatible saves):
+  - Parses and edits normal sections (ship, crew, systems, weapons, cargo, etc.)
+  - Preserves room/door raw bytes for round-trip safety
+  - Fixes scanner false-positives when locating weapon sections
+- `RestrictedOpaqueTail` mode (currently used for unsupported Hyperspace/Multiverse layouts):
+  - Parses header + state vars
+  - Preserves the remaining file tail as opaque bytes
+  - Exposes only safe editors (`Metadata`, `State Variables`)
 
-### What doesn't work
-- **Room parsing** — FTL save files do not store room counts or square counts. The Java reference parser (Vhati's) gets these from external ship layout `.txt` files bundled with the game data. Our parser currently skips room/breach/door data by scanning forward to find the weapon section. This means room, breach, and door data is not loaded.
-- **Door parsing** — Same issue as rooms; door count comes from layout data, not the save file.
-- **Multiverse/modded ship support** — The `hs_mv_continue.sav` file fails earlier (during crew parsing), likely due to Hyperspace-specific extensions to the crew data format.
-- **Save file writing** — Writer exists but hasn't been tested since the parser can't fully load files yet.
-- **Editing UI** — Views exist for ship overview, crew, systems, weapons, drones, augments, and sector map, but they depend on fully parsed data.
+## Automatic Backups
 
-### Key technical findings
-- FTL save format is little-endian binary with int32 values, length-prefixed UTF-8 strings, and bools stored as int32 (0/1).
-- Room square counts per room are NOT in the save file — they come from the ship's layout data file (e.g., `kestrel.txt`). Without this external data, room parsing is ambiguous.
-- The "no station" value for `stationSquare` is `-1` (not `-2` as some docs suggest). `stationDirection` uses 0-4 (DOWN, RIGHT, UP, LEFT, NONE).
-- `extinguishmentProgress` defaults to `-1` when no fire is present (not `0`).
-- The HackingInfo section includes a full DronePodState (~30 fields + AnimState + hacking extension).
-- Hyperspace/Multiverse mods extend the save format with additional fields in crew, systems, and other sections.
+Backups are automatic before writing save data.
 
-## Sources / References
+- `Save`:
+  - Always creates a backup of the current target file before overwrite.
+- `Save As`:
+  - Creates a backup of the currently loaded source file first (when source and destination differ).
+  - If destination already exists, also creates a backup of destination before overwrite.
 
-- **Vhati's FTL Profile Editor** (Java, primary reference): https://github.com/Vhati/ftl-profile-editor
-  - `SavedGameParser.java` — the authoritative reference for the binary save format
-  - Uses external ship layout data from game files for room/door counts
-- **FTL: Faster Than Light** by Subset Games: https://subsetgames.com/ftl.html
-- **FTL Hyperspace** mod: https://github.com/FTL-Hyperspace/FTL-Hyperspace
-- **FTL Multiverse** mod: https://ftlmultiverse.fandom.com/
+Backup files are written beside the original with timestamped names, for example:
 
-## Project Structure
+- `continue_backup_2026-02-21_12-34-56-123.sav`
 
-```
-FtlSaveEditor/
-  FtlSaveEditor/
-    App.xaml, App.xaml.cs          — WPF application entry
-    MainWindow.xaml, .cs           — Main editor window (dark theme)
-    Models/
-      SaveData.cs                  — All data model classes
-      Enums.cs                     — System types, helpers
-    SaveFile/
-      SaveFileParser.cs            — Binary save file parser
-      SaveFileWriter.cs            — Binary save file writer
-      ShipLayouts.cs               — Hardcoded room layouts (incomplete)
-    Services/
-      FileService.cs               — File open/save dialogs
-      SaveEditorState.cs           — Singleton editor state
-    Views/
-      ShipOverviewView.xaml        — Ship summary (hull, resources)
-      CrewView.xaml                — Crew list and editing
-      SystemsView.xaml             — Systems management
-      WeaponsView.xaml             — Weapons and drones
-      SectorMapView.xaml           — Sector/beacon info
-```
+The backup naming includes milliseconds and collision-safe suffixing.
 
-## Building
+## Diagnostics
+
+When full parsing fails, diagnostics are written to:
+
+- `%LOCALAPPDATA%\FtlSaveEditor\logs\`
+
+The UI shows warning context and log path.
+
+## Known Limitations
+
+- Full semantic parsing for some Hyperspace/Multiverse sections is still incomplete.
+- Room/door semantic editing is not implemented yet; raw room/door bytes are preserved for safety.
+
+## Build
 
 Requires .NET 8 SDK.
 
@@ -72,11 +55,29 @@ dotnet build
 dotnet run
 ```
 
-## Save file location
+## Tests
 
-Save files are typically at:
+```bash
+dotnet test ftl-save-editor.sln
 ```
+
+## Save File Location
+
+Typical location:
+
+```text
 %USERPROFILE%\Documents\My Games\FasterThanLight\
 ```
-- `continue.sav` — vanilla/Hyperspace save
-- `hs_mv_continue.sav` — Multiverse save
+
+Common files:
+
+- `continue.sav`
+- `hs_continue.sav`
+- `hs_mv_continue.sav`
+
+## References
+
+- Vhati's FTL Profile Editor: https://github.com/Vhati/ftl-profile-editor
+- FTL official site: https://subsetgames.com/ftl.html
+- FTL Hyperspace: https://github.com/FTL-Hyperspace/FTL-Hyperspace
+- FTL Multiverse: https://ftlmultiverse.fandom.com/

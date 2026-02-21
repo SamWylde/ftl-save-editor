@@ -22,7 +22,14 @@ public class SaveFileWriter
     {
         using var ms = new MemoryStream();
         _writer = new BinaryWriter(ms);
-        WriteSavedGame(state);
+        if (state.ParseMode == SaveParseMode.RestrictedOpaqueTail)
+        {
+            WriteRestrictedOpaqueSave(state);
+        }
+        else
+        {
+            WriteSavedGame(state);
+        }
         return ms.ToArray();
     }
 
@@ -35,26 +42,7 @@ public class SaveFileWriter
         int fmt = state.FileFormat;
 
         // -- Header --
-        WriteInt(fmt);
-        if (fmt >= 11) WriteBool(state.RandomNative);
-        if (fmt >= 7) WriteBool(state.DlcEnabled);
-        WriteInt(state.Difficulty);
-        WriteInt(state.TotalShipsDefeated);
-        WriteInt(state.TotalBeaconsExplored);
-        WriteInt(state.TotalScrapCollected);
-        WriteInt(state.TotalCrewHired);
-        WriteString(state.PlayerShipName);
-        WriteString(state.PlayerShipBlueprintId);
-        WriteInt(state.OneBasedSectorNumber);
-        WriteInt(state.UnknownBeta);
-
-        // State vars
-        WriteInt(state.StateVars.Count);
-        foreach (var sv in state.StateVars)
-        {
-            WriteString(sv.Key);
-            WriteInt(sv.Value);
-        }
+        WriteHeaderAndStateVars(state);
 
         // -- Player Ship --
         WriteShipState(state.PlayerShip, fmt);
@@ -161,6 +149,39 @@ public class SaveFileWriter
         }
     }
 
+    private void WriteRestrictedOpaqueSave(SavedGameState state)
+    {
+        WriteHeaderAndStateVars(state);
+        if (state.OpaqueTailBytes.Length > 0)
+        {
+            _writer.Write(state.OpaqueTailBytes);
+        }
+    }
+
+    private void WriteHeaderAndStateVars(SavedGameState state)
+    {
+        int fmt = state.FileFormat;
+        WriteInt(fmt);
+        if (fmt >= 11) WriteBool(state.RandomNative);
+        if (fmt >= 7) WriteBool(state.DlcEnabled);
+        WriteInt(state.Difficulty);
+        WriteInt(state.TotalShipsDefeated);
+        WriteInt(state.TotalBeaconsExplored);
+        WriteInt(state.TotalScrapCollected);
+        WriteInt(state.TotalCrewHired);
+        WriteString(state.PlayerShipName);
+        WriteString(state.PlayerShipBlueprintId);
+        WriteInt(state.OneBasedSectorNumber);
+        WriteInt(state.UnknownBeta);
+
+        WriteInt(state.StateVars.Count);
+        foreach (var sv in state.StateVars)
+        {
+            WriteString(sv.Key);
+            WriteInt(sv.Value);
+        }
+    }
+
     // ========================================================================
     // Ship State
     // ========================================================================
@@ -170,6 +191,10 @@ public class SaveFileWriter
         WriteString(ship.ShipBlueprintId);
         WriteString(ship.ShipName);
         WriteString(ship.ShipGfxBaseName);
+        if (!string.IsNullOrEmpty(ship.ExtraShipStringBeforeCrew))
+        {
+            WriteString(ship.ExtraShipStringBeforeCrew);
+        }
 
         WriteInt(ship.StartingCrew.Count);
         foreach (var sc in ship.StartingCrew)
@@ -236,26 +261,33 @@ public class SaveFileWriter
             }
         }
 
-        WriteInt(ship.Rooms.Count);
-        foreach (var room in ship.Rooms) WriteRoomState(room, fmt);
-
-        WriteInt(ship.Breaches.Count);
-        foreach (var b in ship.Breaches)
+        if (ship.OpaqueRoomDoorBytes.Length > 0)
         {
-            WriteInt(b.X);
-            WriteInt(b.Y);
-            WriteInt(b.Health);
+            _writer.Write(ship.OpaqueRoomDoorBytes);
         }
-
-        WriteInt(ship.Doors.Count);
-        foreach (var door in ship.Doors) WriteDoorState(door, fmt);
-
-        if (fmt >= 7) WriteInt(ship.CloakAnimTicks);
-
-        if (fmt >= 8)
+        else
         {
-            WriteInt(ship.LockdownCrystals.Count);
-            foreach (var c in ship.LockdownCrystals) WriteLockdownCrystal(c);
+            WriteInt(ship.Rooms.Count);
+            foreach (var room in ship.Rooms) WriteRoomState(room, fmt);
+
+            WriteInt(ship.Breaches.Count);
+            foreach (var b in ship.Breaches)
+            {
+                WriteInt(b.X);
+                WriteInt(b.Y);
+                WriteInt(b.Health);
+            }
+
+            WriteInt(ship.Doors.Count);
+            foreach (var door in ship.Doors) WriteDoorState(door, fmt);
+
+            if (fmt >= 7) WriteInt(ship.CloakAnimTicks);
+
+            if (fmt >= 8)
+            {
+                WriteInt(ship.LockdownCrystals.Count);
+                foreach (var c in ship.LockdownCrystals) WriteLockdownCrystal(c);
+            }
         }
 
         WriteInt(ship.Weapons.Count);
@@ -474,7 +506,7 @@ public class SaveFileWriter
         if (beacon.StorePresent && beacon.Store != null)
             WriteStoreState(beacon.Store, fmt);
 
-        if (fmt >= 8) WriteBool(beacon.UnknownEta);
+        if (fmt >= 8 && fmt < 11) WriteBool(beacon.UnknownEta);
     }
 
     private void WriteStoreState(StoreState store, int fmt)

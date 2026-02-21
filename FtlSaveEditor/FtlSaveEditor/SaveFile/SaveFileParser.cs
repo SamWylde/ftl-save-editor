@@ -2,12 +2,16 @@ namespace FtlSaveEditor.SaveFile;
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text;
 using FtlSaveEditor.Models;
 
 public class SaveFileParser
 {
+    private const int MaxStringLength = 10000;
     private BinaryReader _reader = null!;
 
     private int ReadInt() => _reader.ReadInt32();
@@ -27,12 +31,66 @@ public class SaveFileParser
 
     private bool _debug;
 
-    public SavedGameState Parse(byte[] data, bool debug = false)
+    private sealed class HeaderSnapshot
+    {
+        public int FileFormat { get; init; }
+        public bool RandomNative { get; init; }
+        public bool DlcEnabled { get; init; }
+        public int Difficulty { get; init; }
+        public int TotalShipsDefeated { get; init; }
+        public int TotalBeaconsExplored { get; init; }
+        public int TotalScrapCollected { get; init; }
+        public int TotalCrewHired { get; init; }
+        public string PlayerShipName { get; init; } = "";
+        public string PlayerShipBlueprintId { get; init; } = "";
+        public int OneBasedSectorNumber { get; init; }
+        public int UnknownBeta { get; init; }
+        public List<StateVar> StateVars { get; init; } = [];
+        public long OffsetAfterStateVars { get; init; }
+    }
+
+    public SavedGameState Parse(byte[] data, bool debug = false, string? sourcePath = null)
     {
         _debug = debug;
+        HeaderSnapshot header;
+        try
+        {
+            header = ParseHeaderSnapshot(data);
+        }
+        catch (Exception ex)
+        {
+            var diagnostic = BuildParseDiagnostic(ex);
+            var logPath = ParseDiagnosticsLogger.Write(sourcePath, SaveParseMode.Full, diagnostic, ex);
+            diagnostic.LogPath = logPath;
+            throw BuildEnrichedParseException(ex, diagnostic);
+        }
+
         using var ms = new MemoryStream(data);
         _reader = new BinaryReader(ms);
-        return ParseSavedGame();
+
+        try
+        {
+            var state = ParseSavedGame();
+            state.ParseMode = SaveParseMode.Full;
+            state.Capabilities = EditorCapability.Full;
+            return state;
+        }
+        catch (Exception ex)
+        {
+            var diagnostic = BuildParseDiagnostic(ex);
+            var logPath = ParseDiagnosticsLogger.Write(sourcePath, SaveParseMode.Full, diagnostic, ex);
+            diagnostic.LogPath = logPath;
+
+            if (header.FileFormat == 11)
+            {
+                var warning =
+                    $"Full parse failed ({diagnostic.Section}, offset {diagnostic.ByteOffset?.ToString() ?? "unknown"}). " +
+                    $"Falling back to restricted mode. Log: {logPath}";
+                return BuildRestrictedState(header, data, warning, diagnostic);
+            }
+
+            throw BuildEnrichedParseException(ex, diagnostic);
+        }
     }
 
     private void DebugLog(string msg)
@@ -48,6 +106,7 @@ public class SaveFileParser
     {
         var stream = _reader.BaseStream;
         long savedPos = stream.Position;
+        var candidatePositions = new List<long>();
 
         // We know the structure before weapons:
         // ... rooms ... breaches ... doors ... cloakAnimTicks(4, fmt>=7) ... lockdownCrystalCount(4, fmt>=8) + data ... weaponCount
@@ -81,8 +140,7 @@ public class SaveFileParser
                             byte[] strBytes = _reader.ReadBytes(augStrLen);
                             if (IsAsciiIdentifier(strBytes))
                             {
-                                stream.Position = savedPos;
-                                return pos;
+                                candidatePositions.Add(pos);
                             }
                         }
                     }
@@ -96,8 +154,7 @@ public class SaveFileParser
                         byte[] strBytes = _reader.ReadBytes(droneStrLen);
                         if (IsAsciiIdentifier(strBytes))
                         {
-                            stream.Position = savedPos;
-                            return pos;
+                            candidatePositions.Add(pos);
                         }
                     }
                 }
@@ -116,9 +173,16 @@ public class SaveFileParser
             int armed = _reader.ReadInt32();
             if (armed != 0 && armed != 1) continue;
 
-            // Found a valid weapon section candidate
-            stream.Position = savedPos;
-            return pos;
+            candidatePositions.Add(pos);
+        }
+
+        foreach (var candidatePos in candidatePositions.Distinct().OrderBy(p => p))
+        {
+            if (ValidateWeaponSectionCandidate(candidatePos, fmt))
+            {
+                stream.Position = savedPos;
+                return candidatePos;
+            }
         }
 
         stream.Position = savedPos;
@@ -132,6 +196,380 @@ public class SaveFileParser
             if (b < 0x20 || b > 0x7E) return false; // printable ASCII
         }
         return true;
+    }
+
+    private HeaderSnapshot ParseHeaderSnapshot(byte[] data)
+    {
+        using var ms = new MemoryStream(data);
+        using var reader = new BinaryReader(ms);
+
+        int ReadSnapshotInt()
+        {
+            if (ms.Position + 4 > ms.Length)
+            {
+                throw new Exception($"Unexpected end-of-file reading int at byte offset {ms.Position}");
+            }
+
+            return reader.ReadInt32();
+        }
+
+        bool ReadSnapshotBool() => ReadSnapshotInt() != 0;
+
+        string ReadSnapshotString()
+        {
+            long pos = ms.Position;
+            int len = ReadSnapshotInt();
+            if (len < 0)
+            {
+                throw new Exception($"Negative string length {len} at byte offset {pos} (0x{pos:X})");
+            }
+
+            if (len > MaxStringLength)
+            {
+                throw new Exception($"Implausible string length {len} at byte offset {pos} (0x{pos:X})");
+            }
+
+            if (ms.Position + len > ms.Length)
+            {
+                throw new Exception($"String overruns file at byte offset {pos} (0x{pos:X})");
+            }
+
+            if (len == 0)
+            {
+                return "";
+            }
+
+            byte[] bytes = reader.ReadBytes(len);
+            return Encoding.UTF8.GetString(bytes);
+        }
+
+        int fileFormat = ReadSnapshotInt();
+        if (fileFormat != 2 && fileFormat != 7 && fileFormat != 8 && fileFormat != 9 && fileFormat != 11)
+        {
+            throw new Exception(
+                $"Unsupported file format version: {fileFormat}. Expected 2, 7, 8, 9, or 11.");
+        }
+
+        bool randomNative = fileFormat >= 11 ? ReadSnapshotBool() : false;
+        bool dlcEnabled = fileFormat >= 7 ? ReadSnapshotBool() : false;
+        int difficulty = ReadSnapshotInt();
+        int totalShipsDefeated = ReadSnapshotInt();
+        int totalBeaconsExplored = ReadSnapshotInt();
+        int totalScrapCollected = ReadSnapshotInt();
+        int totalCrewHired = ReadSnapshotInt();
+        string playerShipName = ReadSnapshotString();
+        string playerShipBlueprintId = ReadSnapshotString();
+        int oneBasedSectorNumber = ReadSnapshotInt();
+        int unknownBeta = ReadSnapshotInt();
+
+        int stateVarCount = ReadSnapshotInt();
+        if (stateVarCount < 0 || stateVarCount > 100000)
+        {
+            throw new Exception(
+                $"Implausible state var count {stateVarCount} at byte offset {ms.Position - 4} (0x{ms.Position - 4:X})");
+        }
+
+        var stateVars = new List<StateVar>(stateVarCount);
+        for (int i = 0; i < stateVarCount; i++)
+        {
+            stateVars.Add(new StateVar
+            {
+                Key = ReadSnapshotString(),
+                Value = ReadSnapshotInt()
+            });
+        }
+
+        return new HeaderSnapshot
+        {
+            FileFormat = fileFormat,
+            RandomNative = randomNative,
+            DlcEnabled = dlcEnabled,
+            Difficulty = difficulty,
+            TotalShipsDefeated = totalShipsDefeated,
+            TotalBeaconsExplored = totalBeaconsExplored,
+            TotalScrapCollected = totalScrapCollected,
+            TotalCrewHired = totalCrewHired,
+            PlayerShipName = playerShipName,
+            PlayerShipBlueprintId = playerShipBlueprintId,
+            OneBasedSectorNumber = oneBasedSectorNumber,
+            UnknownBeta = unknownBeta,
+            StateVars = stateVars,
+            OffsetAfterStateVars = ms.Position,
+        };
+    }
+
+    private SavedGameState BuildRestrictedState(
+        HeaderSnapshot header,
+        byte[] fullData,
+        string warning,
+        ParseDiagnostic diagnostic)
+    {
+        int tailOffset = (int)Math.Min(Math.Max(0, header.OffsetAfterStateVars), fullData.Length);
+        int tailLength = fullData.Length - tailOffset;
+        var tailBytes = new byte[tailLength];
+        Array.Copy(fullData, tailOffset, tailBytes, 0, tailLength);
+
+        var state = new SavedGameState
+        {
+            ParseMode = SaveParseMode.RestrictedOpaqueTail,
+            Capabilities = EditorCapability.Metadata | EditorCapability.StateVars,
+            OpaqueTailBytes = tailBytes,
+            FileFormat = header.FileFormat,
+            RandomNative = header.RandomNative,
+            DlcEnabled = header.DlcEnabled,
+            Difficulty = header.Difficulty,
+            TotalShipsDefeated = header.TotalShipsDefeated,
+            TotalBeaconsExplored = header.TotalBeaconsExplored,
+            TotalScrapCollected = header.TotalScrapCollected,
+            TotalCrewHired = header.TotalCrewHired,
+            PlayerShipName = header.PlayerShipName,
+            PlayerShipBlueprintId = header.PlayerShipBlueprintId,
+            OneBasedSectorNumber = header.OneBasedSectorNumber,
+            UnknownBeta = header.UnknownBeta,
+            StateVars = new List<StateVar>(header.StateVars),
+            PlayerShip = new ShipState
+            {
+                ShipName = header.PlayerShipName,
+                ShipBlueprintId = header.PlayerShipBlueprintId
+            },
+        };
+
+        state.ParseWarnings.Add(warning);
+        state.ParseDiagnostics.Add(diagnostic);
+        return state;
+    }
+
+    private ParseDiagnostic BuildParseDiagnostic(Exception ex)
+    {
+        return new ParseDiagnostic
+        {
+            Section = InferSection(ex),
+            ByteOffset = ExtractByteOffset(ex.Message),
+            Message = ex.Message,
+        };
+    }
+
+    private static string InferSection(Exception ex)
+    {
+        var trace = new StackTrace(ex, false);
+        var frame = trace.GetFrames()?.FirstOrDefault(f =>
+            f.GetMethod()?.DeclaringType == typeof(SaveFileParser) &&
+            f.GetMethod()?.Name != null &&
+            f.GetMethod()!.Name.StartsWith("Parse", StringComparison.Ordinal));
+
+        return frame?.GetMethod()?.Name ?? "UnknownSection";
+    }
+
+    private static long? ExtractByteOffset(string message)
+    {
+        var match = Regex.Match(message, @"byte offset (\d+)", RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            match = Regex.Match(message, @"offset (\d+)", RegexOptions.IgnoreCase);
+        }
+
+        if (match.Success && long.TryParse(match.Groups[1].Value, out long offset))
+        {
+            return offset;
+        }
+
+        return null;
+    }
+
+    private static Exception BuildEnrichedParseException(Exception ex, ParseDiagnostic diagnostic)
+    {
+        string offsetText = diagnostic.ByteOffset.HasValue ? diagnostic.ByteOffset.Value.ToString() : "unknown";
+        string logPath = string.IsNullOrWhiteSpace(diagnostic.LogPath) ? "(not written)" : diagnostic.LogPath!;
+        var message =
+            $"Failed to parse save file.\n\nSection: {diagnostic.Section}\nByte offset: {offsetText}\nLog: {logPath}\n\n{diagnostic.Message}";
+        return new Exception(message, ex);
+    }
+
+    private bool ValidateWeaponSectionCandidate(long sectionPos, int fmt)
+    {
+        var stream = _reader.BaseStream;
+        long savedPos = stream.Position;
+
+        try
+        {
+            stream.Position = sectionPos;
+            if (!TryReadBoundedCount(0, 10, out int weaponCount))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < weaponCount; i++)
+            {
+                if (!TryReadAsciiIdentifierString(1, 80, out _))
+                {
+                    return false;
+                }
+
+                if (!TryReadBoolInt(out _))
+                {
+                    return false;
+                }
+
+                if (fmt == 2 && !TryReadInt(out _))
+                {
+                    return false;
+                }
+            }
+
+            if (!TryReadBoundedCount(0, 10, out int droneCount))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < droneCount; i++)
+            {
+                if (!TryReadAsciiIdentifierString(1, 80, out _))
+                {
+                    return false;
+                }
+
+                if (!TryReadBoolInt(out _) || !TryReadBoolInt(out _))
+                {
+                    return false;
+                }
+
+                for (int j = 0; j < 5; j++)
+                {
+                    if (!TryReadInt(out _))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            if (!TryReadBoundedCount(0, 20, out int augmentCount))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < augmentCount; i++)
+            {
+                if (!TryReadAsciiIdentifierString(1, 80, out _))
+                {
+                    return false;
+                }
+            }
+
+            // Validate next section (cargo) to reduce false positives.
+            if (!TryReadBoundedCount(0, 20, out int cargoCount))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < cargoCount; i++)
+            {
+                if (!TryReadAsciiIdentifierString(1, 80, out _))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        finally
+        {
+            stream.Position = savedPos;
+        }
+    }
+
+    private bool TryReadInt(out int value)
+    {
+        var stream = _reader.BaseStream;
+        if (stream.Position + 4 > stream.Length)
+        {
+            value = 0;
+            return false;
+        }
+
+        value = _reader.ReadInt32();
+        return true;
+    }
+
+    private bool TryReadBoundedCount(int minInclusive, int maxInclusive, out int count)
+    {
+        if (!TryReadInt(out count))
+        {
+            return false;
+        }
+
+        return count >= minInclusive && count <= maxInclusive;
+    }
+
+    private bool TryReadBoolInt(out bool value)
+    {
+        value = false;
+        if (!TryReadInt(out int raw))
+        {
+            return false;
+        }
+
+        if (raw != 0 && raw != 1)
+        {
+            return false;
+        }
+
+        value = raw == 1;
+        return true;
+    }
+
+    private bool TryReadAsciiIdentifierString(int minLength, int maxLength, out string value)
+    {
+        value = "";
+        if (!TryReadInt(out int length))
+        {
+            return false;
+        }
+
+        if (length < minLength || length > maxLength)
+        {
+            return false;
+        }
+
+        var stream = _reader.BaseStream;
+        if (stream.Position + length > stream.Length)
+        {
+            return false;
+        }
+
+        byte[] bytes = _reader.ReadBytes(length);
+        if (!IsAsciiIdentifier(bytes))
+        {
+            return false;
+        }
+
+        value = Encoding.UTF8.GetString(bytes);
+        return true;
+    }
+
+    private bool LooksLikeAsciiBytes(long position, int length)
+    {
+        if (length <= 0 || length > 256)
+        {
+            return false;
+        }
+
+        var stream = _reader.BaseStream;
+        if (position < 0 || position + length > stream.Length)
+        {
+            return false;
+        }
+
+        long savedPos = stream.Position;
+        try
+        {
+            stream.Position = position;
+            byte[] bytes = _reader.ReadBytes(length);
+            return bytes.Length == length && IsAsciiIdentifier(bytes);
+        }
+        finally
+        {
+            stream.Position = savedPos;
+        }
     }
 
     // ========================================================================
@@ -407,8 +845,19 @@ public class SaveFileParser
         var shipBlueprintId = ReadString();
         var shipName = ReadString();
         var shipGfxBaseName = ReadString();
+        string? extraShipStringBeforeCrew = null;
 
         var startingCrewCount = ReadInt();
+        if (startingCrewCount > 12 && LooksLikeAsciiBytes(_reader.BaseStream.Position, startingCrewCount))
+        {
+            // Some nearby/enemy ship entries include an extra string before the crew list.
+            // Preserve it explicitly and then read the actual crew count.
+            var extraShipStringBytes = _reader.ReadBytes(startingCrewCount);
+            extraShipStringBeforeCrew = Encoding.UTF8.GetString(extraShipStringBytes);
+            startingCrewCount = ReadInt();
+            DebugLog($"Detected extra ship string extension '{extraShipStringBeforeCrew}' before starting crew list");
+        }
+
         var startingCrew = new List<StartingCrewMember>();
         for (int i = 0; i < startingCrewCount; i++)
         {
@@ -526,6 +975,9 @@ public class SaveFileParser
         // Weapon section: count(int) + for each: stringLen(int) + string + armed(int)
         long weaponSectionPos = FindWeaponSection(roomDataStart, fmt);
         DebugLog($"Skipped room/breach/door data ({weaponSectionPos - roomDataStart} bytes, {roomDataStart}->{weaponSectionPos})");
+        int rawRoomDoorLength = (int)(weaponSectionPos - roomDataStart);
+        _reader.BaseStream.Position = roomDataStart;
+        byte[] opaqueRoomDoorBytes = _reader.ReadBytes(rawRoomDoorLength);
         _reader.BaseStream.Position = weaponSectionPos;
 
         // Weapons
@@ -567,6 +1019,7 @@ public class SaveFileParser
             ShipBlueprintId = shipBlueprintId,
             ShipName = shipName,
             ShipGfxBaseName = shipGfxBaseName,
+            ExtraShipStringBeforeCrew = extraShipStringBeforeCrew,
             StartingCrew = startingCrew,
             Hostile = hostile,
             JumpChargeTicks = jumpChargeTicks,
@@ -589,6 +1042,7 @@ public class SaveFileParser
             Doors = doors,
             CloakAnimTicks = cloakAnimTicks,
             LockdownCrystals = lockdownCrystals,
+            OpaqueRoomDoorBytes = opaqueRoomDoorBytes,
             Weapons = weapons,
             Drones = drones,
             AugmentIds = augmentIds,
@@ -1075,7 +1529,7 @@ public class SaveFileParser
         var underAttack = ReadBool();
         var storePresent = ReadBool();
         var store = storePresent ? ParseStoreState(fmt) : null;
-        var unknownEta = fmt >= 8 ? ReadBool() : false;
+        var unknownEta = (fmt >= 8 && fmt < 11) ? ReadBool() : false;
 
         return new BeaconState
         {
