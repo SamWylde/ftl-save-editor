@@ -27,7 +27,7 @@ public partial class CrewEditor : UserControl
             PartialModeBanner.Visibility = Visibility.Visible;
             PartialModeBannerText.Text =
                 "Partial mode: Hyperspace extension data is preserved but not shown. " +
-                "Only vanilla crew fields are editable. Adding or removing crew is not supported.";
+                "Only vanilla crew fields are editable. Adding crew is not supported.";
         }
 
         CrewCountText.Text = $"{ship.Crew.Count} crew member(s)";
@@ -92,8 +92,37 @@ public partial class CrewEditor : UserControl
             Text = $"HP: {crew.Health}",
             FontSize = 12,
             Foreground = (SolidColorBrush)FindResource("AccentGreenBrush"),
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0)
         });
+
+        // Remove button
+        int capturedIndex = index;
+        var removeBtn = new Button
+        {
+            Content = "Remove",
+            Style = (Style)FindResource("DarkButton"),
+            Foreground = (SolidColorBrush)FindResource("AccentRedBrush"),
+            FontSize = 11,
+            Padding = new Thickness(8, 2, 8, 2),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        removeBtn.Click += (_, _) =>
+        {
+            var ship = _state.GameState?.PlayerShip;
+            if (ship == null) return;
+            var result = MessageBox.Show(
+                $"Remove crew member \"{crew.Name}\" ({crew.Race})?\n\nThis cannot be undone.",
+                "Confirm Removal", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+            if (capturedIndex >= 0 && capturedIndex < ship.Crew.Count)
+            {
+                ship.Crew.RemoveAt(capturedIndex);
+                _state.MarkDirty();
+                LoadData();
+            }
+        };
+        headerPanel.Children.Add(removeBtn);
 
         expander.Header = headerPanel;
 
