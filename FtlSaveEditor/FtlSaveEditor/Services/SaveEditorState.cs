@@ -65,9 +65,12 @@ public class SaveEditorState : INotifyPropertyChanged
         var shipName = !string.IsNullOrWhiteSpace(state.PlayerShip.ShipName)
             ? state.PlayerShip.ShipName
             : state.PlayerShipName;
-        var modeSuffix = state.ParseMode == SaveParseMode.RestrictedOpaqueTail
-            ? " - Restricted mode"
-            : "";
+        var modeSuffix = state.ParseMode switch
+        {
+            SaveParseMode.PartialPlayerShipOpaqueTail => " - Partial mode",
+            SaveParseMode.RestrictedOpaqueTail => " - Restricted mode",
+            _ => ""
+        };
 
         StatusText = $"{fileName} - {formatStr} - {shipName}{modeSuffix}";
     }
@@ -94,9 +97,12 @@ public class SaveEditorState : INotifyPropertyChanged
         FilePath = path;
         IsDirty = false;
 
-        var modeSuffix = GameState.ParseMode == SaveParseMode.RestrictedOpaqueTail
-            ? " - Restricted mode"
-            : "";
+        var modeSuffix = GameState.ParseMode switch
+        {
+            SaveParseMode.PartialPlayerShipOpaqueTail => " - Partial mode",
+            SaveParseMode.RestrictedOpaqueTail => " - Restricted mode",
+            _ => ""
+        };
         StatusText = $"{System.IO.Path.GetFileName(path)} - Format {GameState.FileFormat}{modeSuffix}";
     }
 

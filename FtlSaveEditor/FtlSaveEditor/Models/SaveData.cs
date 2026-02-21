@@ -33,6 +33,7 @@ public enum EditorCapability
 public enum SaveParseMode
 {
     Full,
+    PartialPlayerShipOpaqueTail,
     RestrictedOpaqueTail
 }
 
@@ -47,6 +48,7 @@ public class ParseDiagnostic
 public class SavedGameState
 {
     public SaveParseMode ParseMode { get; set; } = SaveParseMode.Full;
+    public byte[] OpaquePrePlayerShipBytes { get; set; } = [];
     public byte[] OpaqueTailBytes { get; set; } = [];
     public EditorCapability Capabilities { get; set; } = EditorCapability.Full;
     public List<string> ParseWarnings { get; set; } = new();
@@ -149,6 +151,18 @@ public class ShipState
     public int CloakAnimTicks { get; set; }
     public List<LockdownCrystal> LockdownCrystals { get; set; } = new();
     public byte[] OpaqueRoomDoorBytes { get; set; } = [];
+    /// <summary>
+    /// In partial parse mode: all bytes from crew count through end of room/door data
+    /// (crew, systems, clonebay/battery/shields/cloaking, rooms/breaches/doors).
+    /// Contains Hyperspace extensions that we cannot parse.
+    /// Empty when crew was successfully parsed from the opaque interior.
+    /// </summary>
+    public byte[] OpaqueShipInteriorBytes { get; set; } = [];
+    /// <summary>
+    /// In partial parse mode when crew parsing succeeds: all bytes after the last crew member
+    /// (reserve power, systems, clonebay/battery/shields/cloaking, rooms/breaches/doors).
+    /// </summary>
+    public byte[] OpaquePostCrewBytes { get; set; } = [];
     public List<WeaponState> Weapons { get; set; } = new();
     public List<DroneState> Drones { get; set; } = new();
     public List<string> AugmentIds { get; set; } = new();
@@ -162,6 +176,26 @@ public class StartingCrewMember
 
 public class CrewState
 {
+    /// <summary>
+    /// Opaque HS inline extension bytes BEFORE the origColorRace/origRace strings.
+    /// Contains: 2 sentinel ints + powerCount + variable power data + resourceCount + variable resource data.
+    /// Empty for vanilla saves.
+    /// </summary>
+    public byte[] HsInlinePreStringBytes { get; set; } = [];
+    /// <summary>
+    /// Opaque HS inline extension bytes AFTER the origColorRace/origRace strings.
+    /// Contains: 4 customTele ints + boostCount + variable boost data + 6 extra ints.
+    /// Empty for vanilla saves.
+    /// </summary>
+    public byte[] HsInlinePostStringBytes { get; set; } = [];
+    /// <summary>
+    /// The origColorRace string from the HS inline extension. Empty for vanilla saves.
+    /// </summary>
+    public string HsOriginalColorRace { get; set; } = "";
+    /// <summary>
+    /// The origRace string from the HS inline extension. Empty for vanilla saves.
+    /// </summary>
+    public string HsOriginalRace { get; set; } = "";
     public string Name { get; set; } = "";
     public string Race { get; set; } = "";
     public bool EnemyBoardingDrone { get; set; }
@@ -531,8 +565,8 @@ public class DamageState
 
 public class AnimState
 {
-    public bool Playing { get; set; }
-    public bool Looping { get; set; }
+    public int Playing { get; set; }
+    public int Looping { get; set; }
     public int CurrentFrame { get; set; }
     public int ProgressTicks { get; set; }
     public int Scale { get; set; }

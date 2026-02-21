@@ -77,24 +77,45 @@ public class SaveFileParser
         }
         catch (Exception ex)
         {
-            var diagnostic = BuildParseDiagnostic(ex);
-            var logPath = ParseDiagnosticsLogger.Write(sourcePath, SaveParseMode.Full, diagnostic, ex);
-            diagnostic.LogPath = logPath;
+            var fullDiagnostic = BuildParseDiagnostic(ex);
+            var fullLogPath = ParseDiagnosticsLogger.Write(sourcePath, SaveParseMode.Full, fullDiagnostic, ex);
+            fullDiagnostic.LogPath = fullLogPath;
 
             if (header.FileFormat == 11)
             {
+                // Try partial player ship parse before falling back to restricted mode.
+                try
+                {
+                    var partialState = TryParsePartialPlayerShip(header, data);
+                    if (partialState != null)
+                    {
+                        var partialWarning =
+                            $"Full parse failed ({fullDiagnostic.Section}, offset {fullDiagnostic.ByteOffset?.ToString() ?? "unknown"}). " +
+                            $"Loaded in partial mode: player ship is editable, other sections preserved as opaque data. " +
+                            $"Full parse log: {fullLogPath}";
+                        partialState.ParseWarnings.Add(partialWarning);
+                        partialState.ParseDiagnostics.Add(fullDiagnostic);
+                        return partialState;
+                    }
+                }
+                catch (Exception partialEx)
+                {
+                    DebugLog($"Partial player ship parse also failed: {partialEx.Message}");
+                }
+
                 var warning =
-                    $"Full parse failed ({diagnostic.Section}, offset {diagnostic.ByteOffset?.ToString() ?? "unknown"}). " +
-                    $"Falling back to restricted mode. Log: {logPath}";
-                return BuildRestrictedState(header, data, warning, diagnostic);
+                    $"Full parse failed ({fullDiagnostic.Section}, offset {fullDiagnostic.ByteOffset?.ToString() ?? "unknown"}). " +
+                    $"Falling back to restricted mode. Log: {fullLogPath}";
+                return BuildRestrictedState(header, data, warning, fullDiagnostic);
             }
 
-            throw BuildEnrichedParseException(ex, diagnostic);
+            throw BuildEnrichedParseException(ex, fullDiagnostic);
         }
     }
 
     private void DebugLog(string msg)
     {
+        System.Diagnostics.Debug.WriteLine($"[parse@{_reader.BaseStream.Position}] {msg}");
         if (_debug) Console.WriteLine($"  [parse@{_reader.BaseStream.Position}] {msg}");
     }
 
@@ -102,7 +123,7 @@ public class SaveFileParser
     // Section scanner - finds weapon section by scanning for weapon count + string pattern
     // ========================================================================
 
-    private long FindWeaponSection(long searchStart, int fmt)
+    private long FindWeaponSection(long searchStart, int fmt, bool requireCargoValidation = true)
     {
         var stream = _reader.BaseStream;
         long savedPos = stream.Position;
@@ -176,9 +197,24 @@ public class SaveFileParser
             candidatePositions.Add(pos);
         }
 
+        // Pass 1: strict validation with cargo check (vanilla saves).
+        if (requireCargoValidation)
+        {
+            foreach (var candidatePos in candidatePositions.Distinct().OrderBy(p => p))
+            {
+                if (ValidateWeaponSectionCandidate(candidatePos, fmt, validateCargo: true))
+                {
+                    stream.Position = savedPos;
+                    return candidatePos;
+                }
+            }
+        }
+
+        // Pass 2: relaxed validation without cargo check (needed for Hyperspace saves
+        // where HS extension data sits between augments and cargo).
         foreach (var candidatePos in candidatePositions.Distinct().OrderBy(p => p))
         {
-            if (ValidateWeaponSectionCandidate(candidatePos, fmt))
+            if (ValidateWeaponSectionCandidate(candidatePos, fmt, validateCargo: false))
             {
                 stream.Position = savedPos;
                 return candidatePos;
@@ -339,6 +375,245 @@ public class SaveFileParser
         return state;
     }
 
+    private SavedGameState? TryParsePartialPlayerShip(HeaderSnapshot header, byte[] fullData)
+    {
+        int fmt = header.FileFormat;
+        long searchStart = header.OffsetAfterStateVars;
+
+        // We know the exact ship blueprint ID from the header. Scan for the
+        // length-prefixed string matching it on 4-byte alignment.
+        var blueprintId = header.PlayerShipBlueprintId;
+        var blueprintBytes = System.Text.Encoding.UTF8.GetBytes(blueprintId);
+        int expectedLen = blueprintBytes.Length;
+
+        var candidates = new List<long>();
+        for (long pos = searchStart; pos + 4 + expectedLen <= fullData.Length; pos += 4)
+        {
+            int strLen = BitConverter.ToInt32(fullData, (int)pos);
+            if (strLen != expectedLen) continue;
+
+            bool match = true;
+            for (int i = 0; i < expectedLen; i++)
+            {
+                if (fullData[(int)pos + 4 + i] != blueprintBytes[i]) { match = false; break; }
+            }
+            if (match) candidates.Add(pos);
+        }
+
+        if (candidates.Count == 0)
+        {
+            DebugLog($"No candidates for '{blueprintId}' found after offset {searchStart}");
+            return null;
+        }
+
+        DebugLog($"Found {candidates.Count} candidate(s) for '{blueprintId}' after offset {searchStart}");
+
+        var prevReader = _reader;
+        var ms = new MemoryStream(fullData);
+        _reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+        try
+        {
+            foreach (var candidatePos in candidates)
+            {
+                try
+                {
+                    ms.Position = candidatePos;
+                    DebugLog($"Trying ship candidate at offset {candidatePos}");
+
+                    // Phase 1: Parse ship header fields (vanilla-compatible).
+                    // Hyperspace adds custom data per-crew-member, so we stop before crew.
+                    var shipBlueprintId = ReadString();
+                    var shipName = ReadString();
+                    var shipGfxBaseName = ReadString();
+
+                    string? extraShipStringBeforeCrew = null;
+                    var startingCrewCount = ReadInt();
+                    if (startingCrewCount > 12 && LooksLikeAsciiBytes(_reader.BaseStream.Position, startingCrewCount))
+                    {
+                        var extraBytes = _reader.ReadBytes(startingCrewCount);
+                        extraShipStringBeforeCrew = Encoding.UTF8.GetString(extraBytes);
+                        startingCrewCount = ReadInt();
+                    }
+
+                    var startingCrew = new List<StartingCrewMember>();
+                    for (int i = 0; i < startingCrewCount; i++)
+                    {
+                        startingCrew.Add(new StartingCrewMember { Race = ReadString(), Name = ReadString() });
+                    }
+
+                    bool hostile = false;
+                    int jumpChargeTicks = 0;
+                    bool jumping = false;
+                    int jumpAnimTicks = 0;
+                    if (fmt >= 7)
+                    {
+                        hostile = ReadBool();
+                        jumpChargeTicks = ReadInt();
+                        jumping = ReadBool();
+                        jumpAnimTicks = ReadInt();
+                    }
+
+                    var hullAmt = ReadInt();
+                    var fuelAmt = ReadInt();
+                    var dronePartsAmt = ReadInt();
+                    var missilesAmt = ReadInt();
+                    var scrapAmt = ReadInt();
+
+                    DebugLog($"  Ship header: '{shipName}' ({shipBlueprintId}), hull={hullAmt}, fuel={fuelAmt}, scrap={scrapAmt}");
+
+                    // Sanity checks on header fields.
+                    if (!string.Equals(shipBlueprintId, header.PlayerShipBlueprintId, StringComparison.Ordinal)) continue;
+                    if (hullAmt < 1 || hullAmt > 200) continue;
+                    if (fuelAmt < 0) continue;
+                    if (scrapAmt < 0) continue;
+
+                    // Phase 2: Skip crew/systems/rooms (contains HS extension data).
+                    // Record position after resources; use FindWeaponSection to jump ahead.
+                    long interiorStart = ms.Position;
+                    long weaponSectionPos = FindWeaponSection(interiorStart, fmt, requireCargoValidation: false);
+                    DebugLog($"  Weapon section at {weaponSectionPos} (interior gap: {weaponSectionPos - interiorStart} bytes)");
+
+                    int interiorLength = (int)(weaponSectionPos - interiorStart);
+                    var opaqueInterior = new byte[interiorLength];
+                    Array.Copy(fullData, (int)interiorStart, opaqueInterior, 0, interiorLength);
+
+                    // Phase 2.5: Try to parse crew from the opaque interior.
+                    // If successful, we get editable crew + opaque post-crew bytes.
+                    // If not, the entire interior stays opaque (no crew editing).
+                    List<CrewState>? parsedCrew = null;
+                    byte[]? postCrewBytes = null;
+                    try
+                    {
+                        var crewResult = TryParseCrewFromOpaqueInterior(opaqueInterior, fmt);
+                        if (crewResult != null)
+                        {
+                            parsedCrew = crewResult.Value.Crew;
+                            postCrewBytes = crewResult.Value.PostCrewBytes;
+                            DebugLog($"  Crew parsing succeeded: {parsedCrew.Count} crew members");
+                        }
+                        else
+                        {
+                            DebugLog($"  Crew parsing returned null — falling back to opaque interior");
+                        }
+                    }
+                    catch (Exception crewEx)
+                    {
+                        DebugLog($"  Crew parsing threw: {crewEx.Message} — falling back to opaque interior");
+                    }
+
+                    // Phase 3: Parse weapons, drones, augments (vanilla-compatible).
+                    ms.Position = weaponSectionPos;
+                    var weaponCount = ReadInt();
+                    var weapons = new List<WeaponState>();
+                    for (int i = 0; i < weaponCount; i++)
+                    {
+                        var weaponId = ReadString();
+                        var armed = ReadBool();
+                        var cooldownTicks = fmt == 2 ? ReadInt() : 0;
+                        weapons.Add(new WeaponState { WeaponId = weaponId, Armed = armed, CooldownTicks = cooldownTicks });
+                    }
+
+                    var droneCount = ReadInt();
+                    var drones = new List<DroneState>();
+                    for (int i = 0; i < droneCount; i++)
+                    {
+                        drones.Add(ParseDroneState());
+                    }
+
+                    var augmentCount = ReadInt();
+                    var augmentIds = new List<string>();
+                    for (int i = 0; i < augmentCount; i++)
+                    {
+                        augmentIds.Add(ReadString());
+                    }
+
+                    DebugLog($"  Weapons: {weaponCount}, Drones: {droneCount}, Augments: {augmentCount}");
+
+                    if (weapons.Count > 20 || drones.Count > 20) continue;
+
+                    // Everything after augments to EOF is the opaque tail.
+                    long endOfAugments = ms.Position;
+                    int tailLength = fullData.Length - (int)endOfAugments;
+                    var tailBytes = new byte[tailLength];
+                    Array.Copy(fullData, (int)endOfAugments, tailBytes, 0, tailLength);
+
+                    int preShipLength = (int)(candidatePos - searchStart);
+                    var preShipBytes = new byte[preShipLength];
+                    if (preShipLength > 0)
+                        Array.Copy(fullData, (int)searchStart, preShipBytes, 0, preShipLength);
+
+                    var ship = new ShipState
+                    {
+                        ShipBlueprintId = shipBlueprintId,
+                        ShipName = shipName,
+                        ShipGfxBaseName = shipGfxBaseName,
+                        ExtraShipStringBeforeCrew = extraShipStringBeforeCrew,
+                        StartingCrew = startingCrew,
+                        Hostile = hostile,
+                        JumpChargeTicks = jumpChargeTicks,
+                        Jumping = jumping,
+                        JumpAnimTicks = jumpAnimTicks,
+                        HullAmt = hullAmt,
+                        FuelAmt = fuelAmt,
+                        DronePartsAmt = dronePartsAmt,
+                        MissilesAmt = missilesAmt,
+                        ScrapAmt = scrapAmt,
+                        // If crew was parsed, clear opaque interior and populate crew/post-crew
+                        OpaqueShipInteriorBytes = parsedCrew != null ? [] : opaqueInterior,
+                        Crew = parsedCrew ?? new List<CrewState>(),
+                        OpaquePostCrewBytes = postCrewBytes ?? [],
+                        Weapons = weapons,
+                        Drones = drones,
+                        AugmentIds = augmentIds,
+                    };
+
+                    var capabilities = EditorCapability.Metadata | EditorCapability.StateVars |
+                                       EditorCapability.Ship | EditorCapability.Weapons |
+                                       EditorCapability.Drones | EditorCapability.Augments;
+                    if (parsedCrew != null)
+                        capabilities |= EditorCapability.Crew;
+
+                    var state = new SavedGameState
+                    {
+                        ParseMode = SaveParseMode.PartialPlayerShipOpaqueTail,
+                        Capabilities = capabilities,
+                        OpaquePrePlayerShipBytes = preShipBytes,
+                        OpaqueTailBytes = tailBytes,
+                        FileFormat = header.FileFormat,
+                        RandomNative = header.RandomNative,
+                        DlcEnabled = header.DlcEnabled,
+                        Difficulty = header.Difficulty,
+                        TotalShipsDefeated = header.TotalShipsDefeated,
+                        TotalBeaconsExplored = header.TotalBeaconsExplored,
+                        TotalScrapCollected = header.TotalScrapCollected,
+                        TotalCrewHired = header.TotalCrewHired,
+                        PlayerShipName = header.PlayerShipName,
+                        PlayerShipBlueprintId = header.PlayerShipBlueprintId,
+                        OneBasedSectorNumber = header.OneBasedSectorNumber,
+                        UnknownBeta = header.UnknownBeta,
+                        StateVars = new List<StateVar>(header.StateVars),
+                        PlayerShip = ship,
+                    };
+
+                    DebugLog($"Partial parse succeeded at offset {candidatePos}, augments end at {endOfAugments}");
+                    return state;
+                }
+                catch (Exception candidateEx)
+                {
+                    DebugLog($"  Candidate at {candidatePos} failed: {candidateEx.Message}");
+                }
+            }
+        }
+        finally
+        {
+            _reader = prevReader;
+            ms.Dispose();
+        }
+
+        return null;
+    }
+
     private ParseDiagnostic BuildParseDiagnostic(Exception ex)
     {
         return new ParseDiagnostic
@@ -385,7 +660,7 @@ public class SaveFileParser
         return new Exception(message, ex);
     }
 
-    private bool ValidateWeaponSectionCandidate(long sectionPos, int fmt)
+    private bool ValidateWeaponSectionCandidate(long sectionPos, int fmt, bool validateCargo = true)
     {
         var stream = _reader.BaseStream;
         long savedPos = stream.Position;
@@ -455,17 +730,21 @@ public class SaveFileParser
                 }
             }
 
-            // Validate next section (cargo) to reduce false positives.
-            if (!TryReadBoundedCount(0, 20, out int cargoCount))
+            if (validateCargo)
             {
-                return false;
-            }
-
-            for (int i = 0; i < cargoCount; i++)
-            {
-                if (!TryReadAsciiIdentifierString(1, 80, out _))
+                // Validate next section (cargo) to reduce false positives.
+                // Skipped in partial mode because Hyperspace injects data between augments and cargo.
+                if (!TryReadBoundedCount(0, 20, out int cargoCount))
                 {
                     return false;
+                }
+
+                for (int i = 0; i < cargoCount; i++)
+                {
+                    if (!TryReadAsciiIdentifierString(1, 80, out _))
+                    {
+                        return false;
+                    }
                 }
             }
 
@@ -569,6 +848,505 @@ public class SaveFileParser
         finally
         {
             stream.Position = savedPos;
+        }
+    }
+
+    // ========================================================================
+    // Crew boundary detection for partial mode (Hyperspace/MV saves)
+    // ========================================================================
+
+    private static readonly HashSet<string> VanillaRaces = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "human", "engi", "mantis", "rock", "crystal", "slug", "zoltan", "lanius", "ghost"
+    };
+
+    private static bool IsPlausibleRace(string race)
+    {
+        if (string.IsNullOrEmpty(race) || race.Length > 50) return false;
+        if (VanillaRaces.Contains(race)) return true;
+        // MV custom races: alphanumeric + underscore, length 1-50
+        foreach (char c in race)
+        {
+            if (!char.IsLetterOrDigit(c) && c != '_') return false;
+        }
+        return true;
+    }
+
+    private static bool IsPrintableString(string s)
+    {
+        foreach (char c in s)
+        {
+            if (c < 0x20 || c > 0x7E) return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to parse a vanilla CrewState at the current reader position.
+    /// Returns null on failure (resets stream position).
+    /// On success, returns the parsed CrewState and sets bytesConsumed.
+    /// </summary>
+    private CrewState? TryParseVanillaCrewState(int fmt, out long bytesConsumed)
+    {
+        bytesConsumed = 0;
+        var stream = _reader.BaseStream;
+        long startPos = stream.Position;
+
+        try
+        {
+            // Pre-validate name string
+            if (!TryReadInt(out int nameLen)) { stream.Position = startPos; return null; }
+            if (nameLen < 0 || nameLen > 50) { stream.Position = startPos; return null; }
+            if (stream.Position + nameLen > stream.Length) { stream.Position = startPos; return null; }
+            byte[] nameBytes = _reader.ReadBytes(nameLen);
+            string name = Encoding.UTF8.GetString(nameBytes);
+            if (nameLen > 0 && !IsPrintableString(name)) { stream.Position = startPos; return null; }
+
+            // Pre-validate race string
+            if (!TryReadInt(out int raceLen)) { stream.Position = startPos; return null; }
+            if (raceLen < 1 || raceLen > 50) { stream.Position = startPos; return null; }
+            if (stream.Position + raceLen > stream.Length) { stream.Position = startPos; return null; }
+            byte[] raceBytes = _reader.ReadBytes(raceLen);
+            string race = Encoding.UTF8.GetString(raceBytes);
+            if (!IsPlausibleRace(race)) { stream.Position = startPos; return null; }
+
+            // Parse the rest of vanilla crew data — mirror ParseCrewState exactly
+            if (!TryReadBoolInt(out bool enemyBoardingDrone)) { stream.Position = startPos; return null; }
+            if (!TryReadInt(out int health)) { stream.Position = startPos; return null; }
+
+            // Post-validate health
+            if (health < 0 || health > 500) { stream.Position = startPos; return null; }
+
+            var spriteX = ReadInt();
+            var spriteY = ReadInt();
+            var roomId = ReadInt();
+            var roomSquare = ReadInt();
+            var playerControlled = ReadBool();
+
+            int cloneReady = 0;
+            int deathOrder = 0;
+            var spriteTintIndices = new List<int>();
+            bool mindControlled = false;
+            int savedRoomSquare = 0;
+            int savedRoomId = 0;
+            if (fmt >= 7)
+            {
+                cloneReady = ReadInt();
+                deathOrder = ReadInt();
+                var tintCount = ReadInt();
+                if (tintCount < 0 || tintCount > 20) { stream.Position = startPos; return null; }
+                for (int i = 0; i < tintCount; i++) spriteTintIndices.Add(ReadInt());
+                mindControlled = ReadBool();
+                savedRoomSquare = ReadInt();
+                savedRoomId = ReadInt();
+            }
+
+            var pilotSkill = ReadInt();
+            var engineSkill = ReadInt();
+            var shieldSkill = ReadInt();
+            var weaponSkill = ReadInt();
+            var repairSkill = ReadInt();
+            var combatSkill = ReadInt();
+            var male = ReadBool();
+
+            // Post-validate skills are non-negative
+            if (pilotSkill < 0 || engineSkill < 0 || shieldSkill < 0 ||
+                weaponSkill < 0 || repairSkill < 0 || combatSkill < 0)
+            {
+                stream.Position = startPos;
+                return null;
+            }
+
+            var repairs = ReadInt();
+            var combatKills = ReadInt();
+            var pilotedEvasions = ReadInt();
+            var jumpsSurvived = ReadInt();
+            var skillMasteriesEarned = ReadInt();
+
+            int stunTicks = 0, healthBoost = 0, clonebayPriority = 0;
+            int damageBoost = 0, unknownLambda = 0, universalDeathCount = 0;
+            if (fmt >= 7)
+            {
+                stunTicks = ReadInt();
+                healthBoost = ReadInt();
+                clonebayPriority = ReadInt();
+                damageBoost = ReadInt();
+                unknownLambda = ReadInt();
+                universalDeathCount = ReadInt();
+            }
+
+            bool pilotMasteryOne = false, pilotMasteryTwo = false;
+            bool engineMasteryOne = false, engineMasteryTwo = false;
+            bool shieldMasteryOne = false, shieldMasteryTwo = false;
+            bool weaponMasteryOne = false, weaponMasteryTwo = false;
+            bool repairMasteryOne = false, repairMasteryTwo = false;
+            bool combatMasteryOne = false, combatMasteryTwo = false;
+            if (fmt >= 8)
+            {
+                pilotMasteryOne = ReadBool();
+                pilotMasteryTwo = ReadBool();
+                engineMasteryOne = ReadBool();
+                engineMasteryTwo = ReadBool();
+                shieldMasteryOne = ReadBool();
+                shieldMasteryTwo = ReadBool();
+                weaponMasteryOne = ReadBool();
+                weaponMasteryTwo = ReadBool();
+                repairMasteryOne = ReadBool();
+                repairMasteryTwo = ReadBool();
+                combatMasteryOne = ReadBool();
+                combatMasteryTwo = ReadBool();
+            }
+
+            bool unknownNu = false;
+            AnimState? teleportAnim = null;
+            bool unknownPhi = false;
+            if (fmt >= 7)
+            {
+                unknownNu = ReadBool();
+                teleportAnim = ParseAnimState();
+                unknownPhi = ReadBool();
+            }
+
+            int? lockdownRechargeTicks = null;
+            int? lockdownRechargeTicksGoal = null;
+            int? unknownOmega = null;
+            if (fmt >= 7 && race == "crystal")
+            {
+                lockdownRechargeTicks = ReadInt();
+                lockdownRechargeTicksGoal = ReadInt();
+                unknownOmega = ReadInt();
+            }
+
+            bytesConsumed = stream.Position - startPos;
+            return new CrewState
+            {
+                Name = name,
+                Race = race,
+                EnemyBoardingDrone = enemyBoardingDrone,
+                Health = health,
+                SpriteX = spriteX,
+                SpriteY = spriteY,
+                RoomId = roomId,
+                RoomSquare = roomSquare,
+                PlayerControlled = playerControlled,
+                CloneReady = cloneReady,
+                DeathOrder = deathOrder,
+                SpriteTintIndices = spriteTintIndices,
+                MindControlled = mindControlled,
+                SavedRoomSquare = savedRoomSquare,
+                SavedRoomId = savedRoomId,
+                PilotSkill = pilotSkill,
+                EngineSkill = engineSkill,
+                ShieldSkill = shieldSkill,
+                WeaponSkill = weaponSkill,
+                RepairSkill = repairSkill,
+                CombatSkill = combatSkill,
+                Male = male,
+                Repairs = repairs,
+                CombatKills = combatKills,
+                PilotedEvasions = pilotedEvasions,
+                JumpsSurvived = jumpsSurvived,
+                SkillMasteriesEarned = skillMasteriesEarned,
+                StunTicks = stunTicks,
+                HealthBoost = healthBoost,
+                ClonebayPriority = clonebayPriority,
+                DamageBoost = damageBoost,
+                UnknownLambda = unknownLambda,
+                UniversalDeathCount = universalDeathCount,
+                PilotMasteryOne = pilotMasteryOne,
+                PilotMasteryTwo = pilotMasteryTwo,
+                EngineMasteryOne = engineMasteryOne,
+                EngineMasteryTwo = engineMasteryTwo,
+                ShieldMasteryOne = shieldMasteryOne,
+                ShieldMasteryTwo = shieldMasteryTwo,
+                WeaponMasteryOne = weaponMasteryOne,
+                WeaponMasteryTwo = weaponMasteryTwo,
+                RepairMasteryOne = repairMasteryOne,
+                RepairMasteryTwo = repairMasteryTwo,
+                CombatMasteryOne = combatMasteryOne,
+                CombatMasteryTwo = combatMasteryTwo,
+                UnknownNu = unknownNu,
+                TeleportAnim = teleportAnim,
+                UnknownPhi = unknownPhi,
+                LockdownRechargeTicks = lockdownRechargeTicks,
+                LockdownRechargeTicksGoal = lockdownRechargeTicksGoal,
+                UnknownOmega = unknownOmega,
+            };
+        }
+        catch
+        {
+            stream.Position = startPos;
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Searches for a doubled race string (origColorRace + origRace) in the data.
+    /// Returns the offset of the first string's length prefix, or -1 if not found.
+    /// </summary>
+    private static int FindDoubledRaceString(byte[] data, int searchStart, string race, int maxSearch = 2000)
+    {
+        byte[] raceBytes = Encoding.UTF8.GetBytes(race);
+        int raceLen = raceBytes.Length;
+        int searchEnd = Math.Min(searchStart + maxSearch, data.Length - 4 - raceLen);
+
+        for (int i = searchStart; i <= searchEnd; i++)
+        {
+            // Look for the race bytes
+            int idx = Array.IndexOf(data, raceBytes[0], i, searchEnd - i + 1);
+            if (idx < 0) break;
+
+            // Check length prefix
+            if (idx < 4) { i = idx; continue; }
+            int prefix = BitConverter.ToInt32(data, idx - 4);
+            if (prefix != raceLen) { i = idx; continue; }
+
+            // Check the bytes actually match
+            bool match = true;
+            for (int b = 1; b < raceLen; b++)
+            {
+                if (data[idx + b] != raceBytes[b]) { match = false; break; }
+            }
+            if (!match) { i = idx; continue; }
+
+            // Valid first string. Check if immediately followed by same string.
+            int nextOff = idx + raceLen;
+            if (nextOff + 4 + raceLen > data.Length) { i = idx; continue; }
+            int nextPrefix = BitConverter.ToInt32(data, nextOff);
+            if (nextPrefix != raceLen) { i = idx; continue; }
+
+            bool nextMatch = true;
+            for (int b = 0; b < raceLen; b++)
+            {
+                if (data[nextOff + 4 + b] != raceBytes[b]) { nextMatch = false; break; }
+            }
+            if (!nextMatch) { i = idx; continue; }
+
+            // Found doubled race string pair
+            return idx - 4;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Attempts to parse crew members from the opaque interior bytes.
+    /// The HS extension is INLINE within each crew member's data, injected between
+    /// universalDeathCount and mastery bools. This method:
+    /// 1. Parses vanilla fields through universalDeathCount
+    /// 2. Finds the origColorRace/origRace string pair (matching crew's race)
+    /// 3. Captures HS bytes as opaque blobs (pre-string and post-string)
+    /// 4. Resumes vanilla parse at mastery bools (no crystal lockdown in HS format)
+    /// Returns null if parsing fails (caller should fall back to fully-opaque path).
+    /// </summary>
+    private (List<CrewState> Crew, byte[] PostCrewBytes)? TryParseCrewFromOpaqueInterior(byte[] opaqueInterior, int fmt)
+    {
+        var prevReader = _reader;
+        var ms = new MemoryStream(opaqueInterior);
+        _reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+        try
+        {
+            if (!TryReadInt(out int crewCount)) return null;
+            if (crewCount < 0 || crewCount > 30) return null;
+
+            DebugLog($"  TryParseCrewFromOpaqueInterior: crewCount={crewCount}");
+
+            var crewList = new List<CrewState>(crewCount);
+
+            for (int i = 0; i < crewCount; i++)
+            {
+                long crewStart = ms.Position;
+
+                // Parse vanilla fields: name, race, then through universalDeathCount
+                if (!TryReadInt(out int nameLen)) return null;
+                if (nameLen < 0 || nameLen > 50 || ms.Position + nameLen > ms.Length) return null;
+                string name = Encoding.UTF8.GetString(_reader.ReadBytes(nameLen));
+
+                if (!TryReadInt(out int raceLen)) return null;
+                if (raceLen < 1 || raceLen > 50 || ms.Position + raceLen > ms.Length) return null;
+                string race = Encoding.UTF8.GetString(_reader.ReadBytes(raceLen));
+                if (!IsPlausibleRace(race)) return null;
+
+                if (!TryReadBoolInt(out bool enemyBoardingDrone)) return null;
+                if (!TryReadInt(out int health)) return null;
+                if (health < 0 || health > 500) return null;
+
+                int spriteX = ReadInt(), spriteY = ReadInt();
+                int roomId = ReadInt(), roomSquare = ReadInt();
+                bool playerControlled = ReadBool();
+
+                int cloneReady = 0, deathOrder = 0;
+                var spriteTintIndices = new List<int>();
+                bool mindControlled = false;
+                int savedRoomSquare = 0, savedRoomId = 0;
+                if (fmt >= 7)
+                {
+                    cloneReady = ReadInt();
+                    deathOrder = ReadInt();
+                    int tintCount = ReadInt();
+                    if (tintCount < 0 || tintCount > 20) return null;
+                    for (int t = 0; t < tintCount; t++) spriteTintIndices.Add(ReadInt());
+                    mindControlled = ReadBool();
+                    savedRoomSquare = ReadInt();
+                    savedRoomId = ReadInt();
+                }
+
+                int pilotSkill = ReadInt(), engineSkill = ReadInt(), shieldSkill = ReadInt();
+                int weaponSkill = ReadInt(), repairSkill = ReadInt(), combatSkill = ReadInt();
+                bool male = ReadBool();
+
+                if (pilotSkill < 0 || engineSkill < 0 || shieldSkill < 0 ||
+                    weaponSkill < 0 || repairSkill < 0 || combatSkill < 0) return null;
+
+                int repairs = ReadInt(), combatKills = ReadInt(), pilotedEvasions = ReadInt();
+                int jumpsSurvived = ReadInt(), skillMasteriesEarned = ReadInt();
+
+                int stunTicks = 0, healthBoost = 0, clonebayPriority = 0;
+                int damageBoost = 0, unknownLambda = 0, universalDeathCount = 0;
+                if (fmt >= 7)
+                {
+                    stunTicks = ReadInt();
+                    healthBoost = ReadInt();
+                    clonebayPriority = ReadInt();
+                    damageBoost = ReadInt();
+                    unknownLambda = ReadInt();
+                    universalDeathCount = ReadInt();
+                }
+
+                long afterUnivDeathCount = ms.Position;
+
+                // Find the doubled race string (origColorRace/origRace) in the raw bytes
+                int pairStart = FindDoubledRaceString(opaqueInterior, (int)afterUnivDeathCount, race);
+                if (pairStart < 0)
+                {
+                    DebugLog($"    Crew[{i}] '{name}' ({race}): could not find doubled race string");
+                    return null;
+                }
+
+                // Capture pre-string HS bytes (sentinels + powers + resources)
+                int preLen = pairStart - (int)afterUnivDeathCount;
+                var hsPreBytes = new byte[preLen];
+                Array.Copy(opaqueInterior, (int)afterUnivDeathCount, hsPreBytes, 0, preLen);
+
+                // Read the two strings
+                ms.Position = pairStart;
+                string origColorRace = ReadString();
+                string origRace = ReadString();
+
+                long afterStrings = ms.Position;
+
+                // Find mastery bools: 12 consecutive values that are all 0 or 1
+                int masteryOffset = -1;
+                for (int search = 0; search < 300; search += 4)
+                {
+                    int testOff = (int)afterStrings + search;
+                    if (testOff + 48 > opaqueInterior.Length) break;
+                    bool allBool = true;
+                    for (int m = 0; m < 12; m++)
+                    {
+                        int v = BitConverter.ToInt32(opaqueInterior, testOff + m * 4);
+                        if (v != 0 && v != 1) { allBool = false; break; }
+                    }
+                    if (allBool) { masteryOffset = testOff; break; }
+                }
+
+                if (masteryOffset < 0)
+                {
+                    DebugLog($"    Crew[{i}] '{name}' ({race}): could not find mastery bools");
+                    return null;
+                }
+
+                // Capture post-string HS bytes (customTele + boosts + extras)
+                int postLen = masteryOffset - (int)afterStrings;
+                var hsPostBytes = new byte[postLen];
+                Array.Copy(opaqueInterior, (int)afterStrings, hsPostBytes, 0, postLen);
+
+                // Resume vanilla parse at mastery bools
+                ms.Position = masteryOffset;
+
+                bool pilotMasteryOne = false, pilotMasteryTwo = false;
+                bool engineMasteryOne = false, engineMasteryTwo = false;
+                bool shieldMasteryOne = false, shieldMasteryTwo = false;
+                bool weaponMasteryOne = false, weaponMasteryTwo = false;
+                bool repairMasteryOne = false, repairMasteryTwo = false;
+                bool combatMasteryOne = false, combatMasteryTwo = false;
+                if (fmt >= 8)
+                {
+                    pilotMasteryOne = ReadBool(); pilotMasteryTwo = ReadBool();
+                    engineMasteryOne = ReadBool(); engineMasteryTwo = ReadBool();
+                    shieldMasteryOne = ReadBool(); shieldMasteryTwo = ReadBool();
+                    weaponMasteryOne = ReadBool(); weaponMasteryTwo = ReadBool();
+                    repairMasteryOne = ReadBool(); repairMasteryTwo = ReadBool();
+                    combatMasteryOne = ReadBool(); combatMasteryTwo = ReadBool();
+                }
+
+                bool unknownNu = false;
+                AnimState? teleportAnim = null;
+                bool unknownPhi = false;
+                if (fmt >= 7)
+                {
+                    unknownNu = ReadBool();
+                    teleportAnim = ParseAnimState();
+                    unknownPhi = ReadBool();
+                }
+                // NO crystal lockdown in HS/MV format (handled by HS crew powers)
+
+                var crew = new CrewState
+                {
+                    HsInlinePreStringBytes = hsPreBytes,
+                    HsInlinePostStringBytes = hsPostBytes,
+                    HsOriginalColorRace = origColorRace,
+                    HsOriginalRace = origRace,
+                    Name = name, Race = race,
+                    EnemyBoardingDrone = enemyBoardingDrone, Health = health,
+                    SpriteX = spriteX, SpriteY = spriteY,
+                    RoomId = roomId, RoomSquare = roomSquare,
+                    PlayerControlled = playerControlled,
+                    CloneReady = cloneReady, DeathOrder = deathOrder,
+                    SpriteTintIndices = spriteTintIndices,
+                    MindControlled = mindControlled,
+                    SavedRoomSquare = savedRoomSquare, SavedRoomId = savedRoomId,
+                    PilotSkill = pilotSkill, EngineSkill = engineSkill, ShieldSkill = shieldSkill,
+                    WeaponSkill = weaponSkill, RepairSkill = repairSkill, CombatSkill = combatSkill,
+                    Male = male, Repairs = repairs, CombatKills = combatKills,
+                    PilotedEvasions = pilotedEvasions, JumpsSurvived = jumpsSurvived,
+                    SkillMasteriesEarned = skillMasteriesEarned,
+                    StunTicks = stunTicks, HealthBoost = healthBoost,
+                    ClonebayPriority = clonebayPriority, DamageBoost = damageBoost,
+                    UnknownLambda = unknownLambda, UniversalDeathCount = universalDeathCount,
+                    PilotMasteryOne = pilotMasteryOne, PilotMasteryTwo = pilotMasteryTwo,
+                    EngineMasteryOne = engineMasteryOne, EngineMasteryTwo = engineMasteryTwo,
+                    ShieldMasteryOne = shieldMasteryOne, ShieldMasteryTwo = shieldMasteryTwo,
+                    WeaponMasteryOne = weaponMasteryOne, WeaponMasteryTwo = weaponMasteryTwo,
+                    RepairMasteryOne = repairMasteryOne, RepairMasteryTwo = repairMasteryTwo,
+                    CombatMasteryOne = combatMasteryOne, CombatMasteryTwo = combatMasteryTwo,
+                    UnknownNu = unknownNu, TeleportAnim = teleportAnim, UnknownPhi = unknownPhi,
+                };
+
+                crewList.Add(crew);
+                DebugLog($"    Crew[{i}] '{name}' ({race}) hp={health}: HS pre={preLen} post={postLen} bytes");
+            }
+
+            // Everything after the last crew member is OpaquePostCrewBytes
+            long postCrewStart = ms.Position;
+            int postCrewLength = opaqueInterior.Length - (int)postCrewStart;
+            var postCrewBytes = new byte[postCrewLength];
+            if (postCrewLength > 0)
+                Array.Copy(opaqueInterior, (int)postCrewStart, postCrewBytes, 0, postCrewLength);
+
+            DebugLog($"  TryParseCrewFromOpaqueInterior succeeded: {crewList.Count} crew, {postCrewLength} post-crew bytes");
+            return (crewList, postCrewBytes);
+        }
+        catch (Exception ex)
+        {
+            DebugLog($"  TryParseCrewFromOpaqueInterior failed: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            _reader = prevReader;
+            ms.Dispose();
         }
     }
 
@@ -840,7 +1618,7 @@ public class SaveFileParser
     // Ship State
     // ========================================================================
 
-    private ShipState ParseShipState(int fmt)
+    private ShipState ParseShipState(int fmt, bool requireCargoValidation = true)
     {
         var shipBlueprintId = ReadString();
         var shipName = ReadString();
@@ -973,7 +1751,7 @@ public class SaveFileParser
 
         // Find the weapon section by scanning for weapon count + valid weapon string pattern.
         // Weapon section: count(int) + for each: stringLen(int) + string + armed(int)
-        long weaponSectionPos = FindWeaponSection(roomDataStart, fmt);
+        long weaponSectionPos = FindWeaponSection(roomDataStart, fmt, requireCargoValidation);
         DebugLog($"Skipped room/breach/door data ({weaponSectionPos - roomDataStart} bytes, {roomDataStart}->{weaponSectionPos})");
         int rawRoomDoorLength = (int)(weaponSectionPos - roomDataStart);
         _reader.BaseStream.Position = roomDataStart;
@@ -1114,18 +1892,12 @@ public class SaveFileParser
             universalDeathCount = ReadInt();
         }
 
-        bool pilotMasteryOne = false;
-        bool pilotMasteryTwo = false;
-        bool engineMasteryOne = false;
-        bool engineMasteryTwo = false;
-        bool shieldMasteryOne = false;
-        bool shieldMasteryTwo = false;
-        bool weaponMasteryOne = false;
-        bool weaponMasteryTwo = false;
-        bool repairMasteryOne = false;
-        bool repairMasteryTwo = false;
-        bool combatMasteryOne = false;
-        bool combatMasteryTwo = false;
+        bool pilotMasteryOne = false, pilotMasteryTwo = false;
+        bool engineMasteryOne = false, engineMasteryTwo = false;
+        bool shieldMasteryOne = false, shieldMasteryTwo = false;
+        bool weaponMasteryOne = false, weaponMasteryTwo = false;
+        bool repairMasteryOne = false, repairMasteryTwo = false;
+        bool combatMasteryOne = false, combatMasteryTwo = false;
         if (fmt >= 8)
         {
             pilotMasteryOne = ReadBool();
@@ -1896,8 +2668,8 @@ public class SaveFileParser
     {
         return new AnimState
         {
-            Playing = ReadBool(),
-            Looping = ReadBool(),
+            Playing = ReadInt(),
+            Looping = ReadInt(),
             CurrentFrame = ReadInt(),
             ProgressTicks = ReadInt(),
             Scale = ReadInt(),
