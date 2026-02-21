@@ -207,16 +207,74 @@ public class SaveFileWriter
             // Legacy: entire interior is opaque (crew parsing failed or not attempted).
             _writer.Write(ship.OpaqueShipInteriorBytes);
         }
-        else if (ship.Crew.Count > 0 || ship.OpaquePostCrewBytes.Length > 0)
+        else if (ship.Crew.Count > 0 || ship.OpaquePostCrewBytes.Length > 0 || ship.Systems.Count > 0)
         {
-            // Crew was parsed: write crew count + per-crew inline HS + vanilla data + post-crew opaque.
+            // Crew was parsed: write crew count + per-crew inline HS + vanilla data.
             WriteInt(ship.Crew.Count);
             foreach (var crew in ship.Crew)
             {
                 WriteCrewStateWithHsInline(crew, fmt);
             }
-            if (ship.OpaquePostCrewBytes.Length > 0)
+
+            if (ship.Systems.Count > 0)
+            {
+                // Systems were parsed: write structured system data.
+                WriteInt(ship.ReservePowerCapacity);
+                foreach (var sys in ship.Systems)
+                    WriteSystemState(sys, fmt);
+
+                if (fmt >= 7)
+                {
+                    var clonebaySys = ship.Systems.Find(s => s.SystemType == SystemType.Clonebay);
+                    if (clonebaySys != null && clonebaySys.Capacity > 0 && ship.ClonebayInfo != null)
+                    {
+                        WriteInt(ship.ClonebayInfo.BuildTicks);
+                        WriteInt(ship.ClonebayInfo.BuildTicksGoal);
+                        WriteInt(ship.ClonebayInfo.DoomTicks);
+                    }
+
+                    var batterySys = ship.Systems.Find(s => s.SystemType == SystemType.Battery);
+                    if (batterySys != null && batterySys.Capacity > 0 && ship.BatteryInfo != null)
+                    {
+                        WriteBool(ship.BatteryInfo.Active);
+                        WriteInt(ship.BatteryInfo.UsedBattery);
+                        WriteInt(ship.BatteryInfo.DischargeTicks);
+                    }
+
+                    if (ship.ShieldsInfo != null)
+                    {
+                        WriteInt(ship.ShieldsInfo.ShieldLayers);
+                        WriteInt(ship.ShieldsInfo.EnergyShieldLayers);
+                        WriteInt(ship.ShieldsInfo.EnergyShieldMax);
+                        WriteInt(ship.ShieldsInfo.ShieldRechargeTicks);
+                        WriteBool(ship.ShieldsInfo.ShieldDropAnimOn);
+                        WriteInt(ship.ShieldsInfo.ShieldDropAnimTicks);
+                        WriteBool(ship.ShieldsInfo.ShieldRaiseAnimOn);
+                        WriteInt(ship.ShieldsInfo.ShieldRaiseAnimTicks);
+                        WriteBool(ship.ShieldsInfo.EnergyShieldAnimOn);
+                        WriteInt(ship.ShieldsInfo.EnergyShieldAnimTicks);
+                        WriteInt(ship.ShieldsInfo.UnknownLambda);
+                        WriteInt(ship.ShieldsInfo.UnknownMu);
+                    }
+
+                    var cloakingSys = ship.Systems.Find(s => s.SystemType == SystemType.Cloaking);
+                    if (cloakingSys != null && cloakingSys.Capacity > 0 && ship.CloakingInfo != null)
+                    {
+                        WriteInt(ship.CloakingInfo.UnknownAlpha);
+                        WriteInt(ship.CloakingInfo.UnknownBeta);
+                        WriteInt(ship.CloakingInfo.CloakTicksGoal);
+                        WriteMinMaxedInt(ship.CloakingInfo.CloakTicks);
+                    }
+                }
+
+                if (ship.OpaquePostSystemsBytes.Length > 0)
+                    _writer.Write(ship.OpaquePostSystemsBytes);
+            }
+            else if (ship.OpaquePostCrewBytes.Length > 0)
+            {
+                // Systems not parsed: write entire post-crew blob as-is.
                 _writer.Write(ship.OpaquePostCrewBytes);
+            }
         }
 
         // Weapons (editable).

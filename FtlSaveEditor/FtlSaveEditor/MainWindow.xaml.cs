@@ -228,6 +228,23 @@ public partial class MainWindow : Window
             SidebarPanel.Children.Add(btn);
         }
 
+        // Help tab — always visible regardless of parse mode
+        _editors["help"] = () => new HelpView();
+        var helpSep = new Separator
+        {
+            Background = (SolidColorBrush)FindResource("BorderBrush"),
+            Margin = new Thickness(12, 8, 12, 8)
+        };
+        SidebarPanel.Children.Add(helpSep);
+        var helpBtn = new Button
+        {
+            Content = "Help / Info",
+            Tag = "help",
+            Style = (Style)FindResource("SidebarButton")
+        };
+        helpBtn.Click += (_, _) => NavigateTo("help");
+        SidebarPanel.Children.Add(helpBtn);
+
         return firstSection;
     }
 
@@ -259,8 +276,9 @@ public partial class MainWindow : Window
     {
         _activeSection = section;
 
-        foreach (Button btn in SidebarPanel.Children)
+        foreach (var child in SidebarPanel.Children)
         {
+            if (child is not Button btn) continue;
             btn.Style = (Style)FindResource(
                 (string)btn.Tag == section ? "SidebarButtonActive" : "SidebarButton");
         }
