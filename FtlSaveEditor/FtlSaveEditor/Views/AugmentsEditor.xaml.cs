@@ -58,8 +58,9 @@ public partial class AugmentsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Augment ID (editable ComboBox with suggestions)
+        // Augment ID (editable ComboBox with suggestions) + blueprint info
         int capturedIndex = index;
+        var idPanel = new StackPanel();
         var idBox = new ComboBox
         {
             IsEditable = true,
@@ -67,6 +68,14 @@ public partial class AugmentsEditor : UserControl
             ItemsSource = GetAugmentSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        var infoTb = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+            Margin = new Thickness(2, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        UpdateAugmentInfo(ship.AugmentIds[index], infoTb);
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
@@ -74,10 +83,13 @@ public partial class AugmentsEditor : UserControl
                 {
                     ship.AugmentIds[capturedIndex] = idBox.Text;
                     _state.MarkDirty();
+                    UpdateAugmentInfo(idBox.Text, infoTb);
                 }
             }));
-        Grid.SetColumn(idBox, 1);
-        grid.Children.Add(idBox);
+        idPanel.Children.Add(idBox);
+        idPanel.Children.Add(infoTb);
+        Grid.SetColumn(idPanel, 1);
+        grid.Children.Add(idPanel);
 
         // Remove button
         var removeBtn = new Button
@@ -110,7 +122,27 @@ public partial class AugmentsEditor : UserControl
     {
         var ship = _state.GameState?.PlayerShip;
         var saveIds = ship?.AugmentIds.Where(id => !string.IsNullOrEmpty(id)) ?? [];
-        return ItemIds.Augments.Concat(saveIds).Distinct().OrderBy(id => id).ToArray();
+        var modIds = _state.Blueprints.Augments.Keys;
+        return ItemIds.Augments.Concat(saveIds).Concat(modIds)
+            .Distinct().OrderBy(id => id).ToArray();
+    }
+
+    private void UpdateAugmentInfo(string id, TextBlock infoTb)
+    {
+        if (_state.Blueprints.Augments.TryGetValue(id, out var bp))
+        {
+            var parts = new List<string> { bp.Title };
+            if (bp.Cost > 0) parts.Add($"{bp.Cost}scrap");
+            if (bp.Stackable) parts.Add("stackable");
+            infoTb.Text = string.Join("  |  ", parts);
+            infoTb.ToolTip = string.IsNullOrEmpty(bp.Description) ? null : bp.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            infoTb.Text = "";
+            infoTb.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void AddAugment_Click(object sender, RoutedEventArgs e)

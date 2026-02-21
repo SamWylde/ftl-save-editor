@@ -78,7 +78,8 @@ public partial class DronesEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Drone ID (editable ComboBox with suggestions)
+        // Drone ID (editable ComboBox with suggestions) + blueprint info
+        var idPanel = new StackPanel();
         var idBox = new ComboBox
         {
             IsEditable = true,
@@ -86,14 +87,24 @@ public partial class DronesEditor : UserControl
             ItemsSource = GetDroneSuggestions(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        var infoTb = new TextBlock
+        {
+            FontSize = 11,
+            Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+            Margin = new Thickness(2, 2, 0, 0)
+        };
+        UpdateDroneInfo(drone.DroneId, infoTb);
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
                 drone.DroneId = idBox.Text;
                 _state.MarkDirty();
+                UpdateDroneInfo(idBox.Text, infoTb);
             }));
-        Grid.SetColumn(idBox, 1);
-        grid.Children.Add(idBox);
+        idPanel.Children.Add(idBox);
+        idPanel.Children.Add(infoTb);
+        Grid.SetColumn(idPanel, 1);
+        grid.Children.Add(idPanel);
 
         // Armed
         var armedChk = new CheckBox
@@ -212,7 +223,24 @@ public partial class DronesEditor : UserControl
     {
         var ship = _state.GameState?.PlayerShip;
         var saveIds = ship?.Drones.Select(d => d.DroneId).Where(id => !string.IsNullOrEmpty(id)) ?? [];
-        return ItemIds.Drones.Concat(saveIds).Distinct().OrderBy(id => id).ToArray();
+        var modIds = _state.Blueprints.Drones.Keys;
+        return ItemIds.Drones.Concat(saveIds).Concat(modIds)
+            .Distinct().OrderBy(id => id).ToArray();
+    }
+
+    private void UpdateDroneInfo(string id, TextBlock infoTb)
+    {
+        if (_state.Blueprints.Drones.TryGetValue(id, out var bp))
+        {
+            infoTb.Text = $"{bp.Title}  |  {bp.Type}  {bp.Power}pwr  {bp.Cost}scrap";
+            infoTb.ToolTip = string.IsNullOrEmpty(bp.Description) ? null : bp.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            infoTb.Text = "";
+            infoTb.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void AddDrone_Click(object sender, RoutedEventArgs e)

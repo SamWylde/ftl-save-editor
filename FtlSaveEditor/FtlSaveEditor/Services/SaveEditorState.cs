@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
 
 namespace FtlSaveEditor.Services;
@@ -12,6 +13,13 @@ public class SaveEditorState : INotifyPropertyChanged
     private string? _filePath;
     private bool _isDirty;
     private string _statusText = "No file loaded";
+
+    public ModBlueprints Blueprints { get; private set; } = new();
+
+    public void LoadBlueprints()
+    {
+        Blueprints = ModBlueprintScanner.Scan();
+    }
 
     public SavedGameState? GameState
     {

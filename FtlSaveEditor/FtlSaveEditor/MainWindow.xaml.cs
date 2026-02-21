@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _state.LoadBlueprints();
         DetectSaveFiles();
     }
 
