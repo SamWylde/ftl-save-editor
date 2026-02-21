@@ -282,8 +282,15 @@ public class SaveFileParserWriterTests
             // OpaqueShipInteriorBytes should be empty (crew was split out)
             Assert.Empty(parsed.PlayerShip.OpaqueShipInteriorBytes);
 
-            // OpaquePostCrewBytes should be non-empty (systems/rooms data)
-            Assert.NotEmpty(parsed.PlayerShip.OpaquePostCrewBytes);
+            // Post-crew data should exist: either as parsed systems or opaque bytes
+            bool systemsParsed = parsed.PlayerShip.Systems.Count > 0;
+            Assert.True(systemsParsed || parsed.PlayerShip.OpaquePostCrewBytes.Length > 0,
+                "Expected either parsed systems or non-empty OpaquePostCrewBytes");
+            if (systemsParsed)
+            {
+                Assert.Empty(parsed.PlayerShip.OpaquePostCrewBytes);
+                Assert.NotEmpty(parsed.PlayerShip.OpaquePostSystemsBytes);
+            }
 
             // Round-trip: write and check byte-for-byte match
             byte[] rewritten = writer.Write(parsed);

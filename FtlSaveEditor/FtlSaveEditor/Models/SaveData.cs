@@ -163,6 +163,12 @@ public class ShipState
     /// (reserve power, systems, clonebay/battery/shields/cloaking, rooms/breaches/doors).
     /// </summary>
     public byte[] OpaquePostCrewBytes { get; set; } = [];
+    /// <summary>
+    /// In partial parse mode when system parsing succeeds: remaining bytes after
+    /// system/clonebay/battery/shields/cloaking data (rooms/breaches/doors).
+    /// When empty, OpaquePostCrewBytes holds the entire post-crew blob.
+    /// </summary>
+    public byte[] OpaquePostSystemsBytes { get; set; } = [];
     public List<WeaponState> Weapons { get; set; } = new();
     public List<DroneState> Drones { get; set; } = new();
     public List<string> AugmentIds { get; set; } = new();

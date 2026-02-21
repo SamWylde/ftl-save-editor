@@ -90,9 +90,12 @@ public class SaveFileParser
                     if (partialState != null)
                     {
                         bool crewParsed = (partialState.Capabilities & EditorCapability.Crew) != 0;
-                        var editableList = crewParsed
-                            ? "ship, crew, weapons, drones, and augments"
-                            : "ship, weapons, drones, and augments";
+                        bool systemsParsed = (partialState.Capabilities & EditorCapability.Systems) != 0;
+                        var parts = new List<string> { "ship" };
+                        if (crewParsed) parts.Add("crew");
+                        if (systemsParsed) parts.Add("systems");
+                        parts.AddRange(new[] { "weapons", "drones", "augments" });
+                        var editableList = string.Join(", ", parts.Take(parts.Count - 1)) + ", and " + parts.Last();
                         var partialWarning =
                             $"Hyperspace/Multiverse save loaded in partial mode. " +
                             $"Editable: {editableList}. Other sections preserved as-is.";
@@ -505,6 +508,22 @@ public class SaveFileParser
                         DebugLog($"  Crew parsing threw: {crewEx.Message} — falling back to opaque interior");
                     }
 
+                    // Phase 2.7: Try to parse systems from the post-crew opaque bytes.
+                    ParsedSystems? parsedSystems = null;
+                    if (postCrewBytes != null && postCrewBytes.Length > 0)
+                    {
+                        try
+                        {
+                            parsedSystems = TryParseSystemsFromPostCrewBytes(postCrewBytes, fmt);
+                            if (parsedSystems == null)
+                                DebugLog($"  System parsing returned null — keeping post-crew bytes opaque");
+                        }
+                        catch (Exception sysEx)
+                        {
+                            DebugLog($"  System parsing threw: {sysEx.Message} — keeping post-crew bytes opaque");
+                        }
+                    }
+
                     // Phase 3: Parse weapons, drones, augments (vanilla-compatible).
                     ms.Position = weaponSectionPos;
                     var weaponCount = ReadInt();
@@ -562,10 +581,17 @@ public class SaveFileParser
                         DronePartsAmt = dronePartsAmt,
                         MissilesAmt = missilesAmt,
                         ScrapAmt = scrapAmt,
-                        // If crew was parsed, clear opaque interior and populate crew/post-crew
                         OpaqueShipInteriorBytes = parsedCrew != null ? [] : opaqueInterior,
                         Crew = parsedCrew ?? new List<CrewState>(),
-                        OpaquePostCrewBytes = postCrewBytes ?? [],
+                        // If systems were parsed, clear OpaquePostCrewBytes and populate structured fields
+                        OpaquePostCrewBytes = parsedSystems != null ? [] : (postCrewBytes ?? []),
+                        ReservePowerCapacity = parsedSystems?.ReservePowerCapacity ?? 0,
+                        Systems = parsedSystems?.Systems ?? new List<SystemState>(),
+                        ClonebayInfo = parsedSystems?.ClonebayInfo,
+                        BatteryInfo = parsedSystems?.BatteryInfo,
+                        ShieldsInfo = parsedSystems?.ShieldsInfo,
+                        CloakingInfo = parsedSystems?.CloakingInfo,
+                        OpaquePostSystemsBytes = parsedSystems?.PostSystemsBytes ?? [],
                         Weapons = weapons,
                         Drones = drones,
                         AugmentIds = augmentIds,
@@ -576,6 +602,8 @@ public class SaveFileParser
                                        EditorCapability.Drones | EditorCapability.Augments;
                     if (parsedCrew != null)
                         capabilities |= EditorCapability.Crew;
+                    if (parsedSystems != null)
+                        capabilities |= EditorCapability.Systems;
 
                     var state = new SavedGameState
                     {
@@ -1344,6 +1372,135 @@ public class SaveFileParser
         catch (Exception ex)
         {
             DebugLog($"  TryParseCrewFromOpaqueInterior failed: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            _reader = prevReader;
+            ms.Dispose();
+        }
+    }
+
+    // ========================================================================
+    // System parsing from opaque post-crew bytes
+    // ========================================================================
+
+    private record struct ParsedSystems(
+        int ReservePowerCapacity,
+        List<SystemState> Systems,
+        ClonebayInfo? ClonebayInfo,
+        BatteryInfo? BatteryInfo,
+        ShieldsInfo? ShieldsInfo,
+        CloakingInfo? CloakingInfo,
+        byte[] PostSystemsBytes);
+
+    private ParsedSystems? TryParseSystemsFromPostCrewBytes(byte[] postCrewBytes, int fmt)
+    {
+        var prevReader = _reader;
+        var ms = new MemoryStream(postCrewBytes);
+        _reader = new BinaryReader(ms);
+
+        try
+        {
+            // Reserve power capacity
+            var reservePowerCapacity = ReadInt();
+            if (reservePowerCapacity < 0 || reservePowerCapacity > 100)
+            {
+                DebugLog($"  TryParseSystemsFromPostCrewBytes: reservePower={reservePowerCapacity} out of range");
+                return null;
+            }
+
+            // 16 system states in fixed order
+            var systemTypes = SystemTypeHelper.GetOrderedSystemTypes(fmt);
+            var systems = new List<SystemState>();
+            foreach (var sysType in systemTypes)
+            {
+                systems.Add(ParseSystemState(sysType, fmt));
+            }
+
+            // Validate parsed systems
+            foreach (var sys in systems)
+            {
+                if (sys.Capacity < 0 || sys.Capacity > 20) return null;
+                if (sys.Power < 0 || sys.Power > 20) return null;
+                if (sys.DamagedBars < 0) return null;
+                if (sys.IonizedBars < 0) return null;
+            }
+
+            DebugLog($"  TryParseSystemsFromPostCrewBytes: parsed {systems.Count} systems, reservePower={reservePowerCapacity}");
+
+            // Conditional post-system data (format >= 7, always true for format 11)
+            ClonebayInfo? clonebayInfo = null;
+            BatteryInfo? batteryInfo = null;
+            ShieldsInfo? shieldsInfo = null;
+            CloakingInfo? cloakingInfo = null;
+
+            if (fmt >= 7)
+            {
+                var clonebaySys = systems.Find(s => s.SystemType == SystemType.Clonebay);
+                if (clonebaySys != null && clonebaySys.Capacity > 0)
+                {
+                    clonebayInfo = new ClonebayInfo
+                    {
+                        BuildTicks = ReadInt(),
+                        BuildTicksGoal = ReadInt(),
+                        DoomTicks = ReadInt(),
+                    };
+                }
+
+                var batterySys = systems.Find(s => s.SystemType == SystemType.Battery);
+                if (batterySys != null && batterySys.Capacity > 0)
+                {
+                    batteryInfo = new BatteryInfo
+                    {
+                        Active = ReadBool(),
+                        UsedBattery = ReadInt(),
+                        DischargeTicks = ReadInt(),
+                    };
+                }
+
+                shieldsInfo = new ShieldsInfo
+                {
+                    ShieldLayers = ReadInt(),
+                    EnergyShieldLayers = ReadInt(),
+                    EnergyShieldMax = ReadInt(),
+                    ShieldRechargeTicks = ReadInt(),
+                    ShieldDropAnimOn = ReadBool(),
+                    ShieldDropAnimTicks = ReadInt(),
+                    ShieldRaiseAnimOn = ReadBool(),
+                    ShieldRaiseAnimTicks = ReadInt(),
+                    EnergyShieldAnimOn = ReadBool(),
+                    EnergyShieldAnimTicks = ReadInt(),
+                    UnknownLambda = ReadInt(),
+                    UnknownMu = ReadInt(),
+                };
+
+                var cloakingSys = systems.Find(s => s.SystemType == SystemType.Cloaking);
+                if (cloakingSys != null && cloakingSys.Capacity > 0)
+                {
+                    cloakingInfo = new CloakingInfo
+                    {
+                        UnknownAlpha = ReadInt(),
+                        UnknownBeta = ReadInt(),
+                        CloakTicksGoal = ReadInt(),
+                        CloakTicks = ReadMinMaxedInt(),
+                    };
+                }
+            }
+
+            // Remaining bytes = rooms/breaches/doors (stays opaque)
+            long postSystemsStart = ms.Position;
+            int postSystemsLength = postCrewBytes.Length - (int)postSystemsStart;
+            var postSystemsBytes = new byte[postSystemsLength];
+            if (postSystemsLength > 0)
+                Array.Copy(postCrewBytes, (int)postSystemsStart, postSystemsBytes, 0, postSystemsLength);
+
+            DebugLog($"  TryParseSystemsFromPostCrewBytes succeeded: {systems.Count} systems, {postSystemsLength} post-systems bytes");
+            return new ParsedSystems(reservePowerCapacity, systems, clonebayInfo, batteryInfo, shieldsInfo, cloakingInfo, postSystemsBytes);
+        }
+        catch (Exception ex)
+        {
+            DebugLog($"  TryParseSystemsFromPostCrewBytes failed: {ex.Message}");
             return null;
         }
         finally

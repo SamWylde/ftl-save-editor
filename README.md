@@ -11,7 +11,7 @@ C# WPF application targeting Windows (`.NET 8`).
 | Mode | Editable Fields | When Used |
 |------|----------------|-----------|
 | **Full** | Everything (ship, crew, systems, weapons, drones, augments, cargo, beacons, environment) | Vanilla saves (formats 2, 7, 8, 9) |
-| **Partial** | Ship, crew, weapons, drones, augments, state variables, metadata | Hyperspace/Multiverse saves (format 11) |
+| **Partial** | Ship, crew, systems, weapons, drones, augments, state variables, metadata | Hyperspace/Multiverse saves (format 11) |
 | **Restricted** | Metadata and state variables only | Fallback when both full and partial parsing fail |
 
 ### Multiverse / Hyperspace Support
@@ -20,10 +20,11 @@ Hyperspace and Multiverse mods extend FTL's binary save format with custom data 
 
 1. Parsing the ship header (hull, fuel, scrap, missiles, drone parts)
 2. Parsing crew members — vanilla fields are editable, HS inline extensions are preserved as opaque blobs
-3. Using a heuristic scanner to locate and parse weapons, drones, and augments
-4. Preserving systems, rooms, cargo, sector map, and encounters as opaque bytes
+3. Parsing ship systems (capacity, power, damage, ionization, hack state) — HS custom systems are preserved separately
+4. Using a heuristic scanner to locate and parse weapons, drones, and augments
+5. Preserving rooms, cargo, sector map, and encounters as opaque bytes
 
-This gives you safe editability of ship resources, crew, and loadout while guaranteeing perfect byte-for-byte round-trip fidelity for all Hyperspace extension data.
+This gives you safe editability of ship resources, crew, systems, and loadout while guaranteeing perfect byte-for-byte round-trip fidelity for all Hyperspace extension data.
 
 ### Editable in Partial Mode
 
@@ -32,13 +33,15 @@ This gives you safe editability of ship resources, crew, and loadout while guara
 | **Metadata** | Difficulty, ship name, blueprint, sector number, stats |
 | **State Variables** | All quest/progression key-value pairs |
 | **Ship** | Hull, fuel, scrap, missiles, drone parts |
-| **Crew** | Name, race, health, all 6 skills, masteries, position, stats |
+| **Crew** | Name, race, health, all 6 skills, masteries, position, stats (add/remove supported) |
+| **Systems** | Capacity, power, damaged bars, ionized bars, hack level, hacked state |
 | **Weapons** | Weapon IDs, armed state (add/remove supported) |
 | **Drones** | Drone IDs, armed state, position (add/remove supported) |
 | **Augments** | Augment IDs (add/remove supported) |
 
 ### Other Features
 
+- In-app Help / Info panel with parse mode details and save format documentation
 - Automatic backups before every save (timestamped, collision-safe)
 - Parse diagnostics logged to `%LOCALAPPDATA%\FtlSaveEditor\logs\`
 - Auto-detection of save files (`continue.sav`, `hs_continue.sav`, `hs_mv_continue.sav`)
@@ -59,7 +62,6 @@ continue_backup_2026-02-21_12-34-56-123.sav
 
 ## Known Limitations
 
-- **Systems editing** is not available in partial mode (ship systems are inside the opaque post-crew blob alongside HS room stat boosts and temporal system data).
 - **Cargo, beacons, and environment editing** are not available in partial mode (these are in the opaque tail after augments).
 - Room/door semantic editing is not implemented in any mode; raw bytes are preserved for round-trip safety.
 - Weapon/drone/augment detection uses a heuristic scanner. In rare cases this could find a false positive, but the round-trip test ensures no data corruption.
@@ -132,14 +134,14 @@ FtlSaveEditor/
     SaveData.cs        - All data model classes (SavedGameState, ShipState, CrewState, etc.)
     Enums.cs           - SystemType, Difficulty, FleetPresence, etc.
   SaveFile/
-    SaveFileParser.cs  - Binary save reader, heuristic weapon scanner, HS crew parser
+    SaveFileParser.cs  - Binary save reader, heuristic weapon scanner, HS crew/system parser
     SaveFileWriter.cs  - Binary save writer, mode-dispatched (full/partial/restricted)
     ShipLayouts.cs     - Hardcoded vanilla ship room square counts
   Services/
     SaveEditorState.cs - Singleton state holder, dirty flag, mode display
     FileService.cs     - Save detection, open/save, backup management
   Views/
-    10 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc
+    11 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc, Help
 ```
 
 ## FTL Save Format

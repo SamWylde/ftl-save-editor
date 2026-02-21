@@ -1,0 +1,187 @@
+<UserControl x:Class="FtlSaveEditor.Views.HelpView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <TextBlock Text="Help &amp; Info" FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,16"/>
+
+        <!-- Current Mode -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="CURRENT MODE" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
+                <TextBlock x:Name="CurrentModeText" TextWrapping="Wrap"
+                           Foreground="{StaticResource TextPrimaryBrush}" FontSize="13"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Parse Modes -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="PARSE MODES" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Full Mode" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,2"/>
+                <TextBlock Text="Used for vanilla FTL saves (format 2, 7, 8, 9). All sections are fully editable: ship, crew, systems, weapons, drones, augments, cargo, sector map, environment, and more."
+                           TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Partial Mode" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,2"/>
+                <TextBlock Text="Used for Hyperspace/Multiverse saves (format 11). Editable sections: ship resources, crew, weapons, drones, augments, state variables, and metadata. Systems, cargo, beacons, and environment are preserved as-is for safe round-trip saving."
+                           TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Restricted Mode" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,2"/>
+                <TextBlock Text="Fallback when both full and partial parsing fail. Only metadata and state variables are editable. Everything else is preserved as opaque bytes."
+                           TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Editable Fields by Mode -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="WHAT'S EDITABLE IN PARTIAL MODE (HS/MV)" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Metadata" Margin="0,3"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Difficulty, ship name, sector, stats" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="State Variables" Margin="0,3"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="All quest/progression key-value pairs" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Ship" Margin="0,3"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="Hull, fuel, scrap, missiles, drone parts" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Crew" Margin="0,3"/>
+                    <TextBlock Grid.Row="3" Grid.Column="1" Text="Name, race, health, skills, stats (add/remove)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Weapons" Margin="0,3"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" Text="Weapon IDs, armed state (add/remove)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Drones" Margin="0,3"/>
+                    <TextBlock Grid.Row="5" Grid.Column="1" Text="Drone IDs, armed state, position (add/remove)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Augments" Margin="0,3"/>
+                    <TextBlock Grid.Row="6" Grid.Column="1" Text="Augment IDs (add/remove)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="7" Grid.Column="0" Text="Systems" Margin="0,3"/>
+                    <TextBlock Grid.Row="7" Grid.Column="1" Text="Capacity, power, damage, ionization, hack state" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="8" Grid.Column="0" Text="Cargo / Beacons" Foreground="{StaticResource AccentRedBrush}" Margin="0,3"/>
+                    <TextBlock Grid.Row="8" Grid.Column="1" Text="Not editable (in opaque tail after HS data)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="9" Grid.Column="0" Text="Environment" Foreground="{StaticResource AccentRedBrush}" Margin="0,3"/>
+                    <TextBlock Grid.Row="9" Grid.Column="1" Text="Not editable (deep in opaque tail)" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Save File Locations -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SAVE FILE LOCATIONS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Default folder:" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,2"/>
+                <TextBlock Text="%USERPROFILE%\Documents\My Games\FasterThanLight\"
+                           FontSize="12" Margin="0,0,0,10"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="continue.sav" Margin="0,3"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Vanilla FTL" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="hs_continue.sav" Margin="0,3"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="FTL: Hyperspace" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="hs_mv_continue.sav" Margin="0,3"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Text="FTL: Multiverse" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Known Limitations -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="KNOWN LIMITATIONS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentRedBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="Hyperspace and Multiverse mods extend FTL's binary save format with custom data at multiple injection points. The editor preserves all extension data as opaque bytes to guarantee safe round-trip saving, but this means some sections cannot be edited."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="Systems editing is unavailable because HS room stat boost data is fused with system/room data in the save format."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="Cargo, beacons, and environment editing are unavailable because HS injects unknown data between augments and the rest of the save file."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                           Text="Automatic backups are created before every save. Backup files appear beside the original with timestamped names."/>
+            </StackPanel>
+        </Border>
+
+        <!-- FTL Save Format -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16">
+            <StackPanel>
+                <TextBlock Text="FTL SAVE FORMAT" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="Binary, little-endian, sequential (no checksums or offset tables). Booleans are 4-byte int32 (0 or 1). Strings are length-prefixed (int32 length + UTF-8 bytes)."/>
+
+                <Grid Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="100"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Format 2-9" Margin="0,3"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Vanilla / Advanced Edition" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Format 11" Margin="0,3"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1" Text="Hyperspace / Multiverse" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,3"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
