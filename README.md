@@ -1,8 +1,8 @@
 # FTL Save Editor
 
-Desktop save game editor for **FTL: Faster Than Light**, including support for **Hyperspace** and **Multiverse** mod saves.
+Desktop save game editor and **live memory trainer** for **FTL: Faster Than Light**, including support for **Hyperspace** and **Multiverse** mod saves.
 
-C# WPF application targeting Windows (`.NET 8`).
+C# WPF application targeting Windows (`.NET 8`). Two modes: **Save Editor** for editing save files on disk, and **Trainer** for reading/writing game memory in real-time while FTL is running.
 
 ## Features
 
@@ -51,6 +51,32 @@ Supported mod file locations:
 - GOG: `D:\GOG\Games\FTL Advanced Edition\mods\`
 - Steam: `...\steamapps\common\FTL Faster Than Light\mods\`
 - Custom: Create `%LOCALAPPDATA%\FtlSaveEditor\settings.txt` with your FTL install path
+
+### Live Memory Trainer
+
+Switch to **Trainer mode** via the toolbar toggle to edit FTL's memory in real-time while the game is running.
+
+| Feature | Description |
+|---------|-------------|
+| **Attach/Detach** | Connect to a running FTL process with one click |
+| **Live Resources** | Read and write Hull, Scrap, Fuel, Missiles, Drone Parts in real-time |
+| **Value Freezing** | Lock any resource value — the trainer continuously writes it back |
+| **Auto-Detection** | Attempts to resolve memory addresses for known FTL versions |
+| **Manual Override** | Enter hex addresses from Cheat Engine when auto-detection fails |
+| **Quick Actions** | Max All Resources, Unfreeze All |
+
+The trainer uses P/Invoke (`ReadProcessMemory`/`WriteProcessMemory`) with no external dependencies. FTL has no anti-cheat.
+
+**Note:** Memory addresses vary by FTL version. The auto-detection may not work for all versions — use the manual address override with Cheat Engine as a fallback. May require running as Administrator.
+
+### Game Data Browser
+
+Available in Trainer mode. Browse FTL's game data files and mod blueprints.
+
+- **Vanilla tab** — Weapons, drones, augments, crew races extracted from FTL's `data.dat` archive
+- **Mod Blueprints tab** — All items from Multiverse/Hyperspace mod ZIP files
+- **Raw Files tab** — Browse and view any file inside `data.dat` (XML blueprints, events, sector data)
+- Search/filter across all tabs, click any row to copy the item ID
 
 ### Other Features
 
@@ -165,8 +191,14 @@ FtlSaveEditor/
     SaveEditorState.cs - Singleton state holder, dirty flag, mode display
     FileService.cs     - Save detection, open/save, backup management
     ModBlueprintScanner.cs - Auto-detects FTL install, parses mod ZIP blueprints
+    ProcessMemoryService.cs - P/Invoke wrapper for ReadProcessMemory/WriteProcessMemory
+    TrainerService.cs  - Live memory trainer (attach, read, write, freeze, version detection)
+    GameDataService.cs - Reads FTL's data.dat archive, extracts vanilla blueprints
   Views/
     12 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc, Help, ItemBrowser
+    TrainerConnectView - Trainer connection page (attach/detach, status, settings)
+    TrainerView        - Live resource editing (read/write/freeze game values)
+    GameDataBrowser    - Browse vanilla + mod blueprints and raw data.dat files
 ```
 
 ## FTL Save Format

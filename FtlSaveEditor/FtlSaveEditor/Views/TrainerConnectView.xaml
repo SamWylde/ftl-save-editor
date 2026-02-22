@@ -1,0 +1,92 @@
+<UserControl x:Class="FtlSaveEditor.Views.TrainerConnectView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <StackPanel Margin="0,0,0,20">
+        <TextBlock Text="Trainer" FontSize="22" FontWeight="Bold"
+                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,16"/>
+
+        <!-- Connection Status -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="CONNECTION" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,12"/>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Ellipse x:Name="StatusDot" Width="10" Height="10"
+                             Fill="{StaticResource AccentRedBrush}"
+                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="StatusLabel" Text="Not attached"
+                               VerticalAlignment="Center" FontSize="14"/>
+                </StackPanel>
+
+                <TextBlock x:Name="VersionLabel" Text=""
+                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                           Margin="0,0,0,12"/>
+
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="AttachBtn" Content="Attach to FTL"
+                            Style="{StaticResource DarkButton}" Margin="0,0,8,0"/>
+                    <Button x:Name="DetachBtn" Content="Detach"
+                            Style="{StaticResource DarkButton}" IsEnabled="False"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Instructions -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="HOW TO USE" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="1. Launch FTL and start or load a run (you must be in-game, not at the main menu)."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="2. Click 'Attach to FTL' above. The trainer will detect the running FTL process."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="3. Navigate to 'Resources' in the sidebar to view and edit live game values."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="4. Changes take effect immediately in-game. Use 'Freeze' to lock a value."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Notes -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource AccentOrangeBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="IMPORTANT NOTES" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="The trainer reads and writes FTL's process memory directly. This is completely separate from save file editing."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="Memory addresses vary between FTL versions. If auto-detection fails, you can enter addresses manually from Cheat Engine in the Resources page."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                           Text="You may need to run this application as Administrator for the trainer to work."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Refresh Rate -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16">
+            <StackPanel>
+                <TextBlock Text="SETTINGS" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Refresh Rate:" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0"/>
+                    <ComboBox x:Name="RefreshRateCombo" Width="120"
+                              SelectedIndex="1"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>
