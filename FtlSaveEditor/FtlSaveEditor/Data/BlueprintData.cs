@@ -31,6 +31,7 @@ public class ModBlueprints
     public Dictionary<string, WeaponBlueprint> Weapons { get; set; } = new();
     public Dictionary<string, DroneBlueprint> Drones { get; set; } = new();
     public Dictionary<string, AugBlueprint> Augments { get; set; } = new();
+    public HashSet<string> CrewRaces { get; set; } = new();
 
     public bool HasData => Weapons.Count > 0 || Drones.Count > 0 || Augments.Count > 0;
 }

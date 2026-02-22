@@ -122,6 +122,10 @@ public static class ModBlueprintScanner
         @"<augBlueprint\s+name=""([^""]+)"">(.*?)</augBlueprint>",
         RegexOptions.Singleline | RegexOptions.Compiled);
 
+    private static readonly Regex CrewRx = new(
+        @"<crewBlueprint\s+name=""([^""]+)""",
+        RegexOptions.Compiled);
+
     private static void ParseBlueprints(string content, ModBlueprints result)
     {
         foreach (Match m in WeaponRx.Matches(content))
@@ -163,6 +167,11 @@ public static class ModBlueprintScanner
                 ExtractTag(body, "desc") ?? "",
                 ParseInt(ExtractTag(body, "cost")),
                 ExtractTag(body, "stackable")?.ToLowerInvariant() == "true");
+        }
+
+        foreach (Match m in CrewRx.Matches(content))
+        {
+            result.CrewRaces.Add(m.Groups[1].Value);
         }
     }
 

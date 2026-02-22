@@ -229,14 +229,30 @@ public partial class MainWindow : Window
             SidebarPanel.Children.Add(btn);
         }
 
-        // Help tab — always visible regardless of parse mode
-        _editors["help"] = () => new HelpView();
-        var helpSep = new Separator
+        // Separator before utility tabs
+        var utilSep = new Separator
         {
             Background = (SolidColorBrush)FindResource("BorderBrush"),
             Margin = new Thickness(12, 8, 12, 8)
         };
-        SidebarPanel.Children.Add(helpSep);
+        SidebarPanel.Children.Add(utilSep);
+
+        // Item Browser — visible when mod blueprints are loaded
+        if (_state.Blueprints.HasData)
+        {
+            _editors["itembrowser"] = () => new ItemBrowser();
+            var ibBtn = new Button
+            {
+                Content = "Item Browser",
+                Tag = "itembrowser",
+                Style = (Style)FindResource("SidebarButton")
+            };
+            ibBtn.Click += (_, _) => NavigateTo("itembrowser");
+            SidebarPanel.Children.Add(ibBtn);
+        }
+
+        // Help tab — always visible regardless of parse mode
+        _editors["help"] = () => new HelpView();
         var helpBtn = new Button
         {
             Content = "Help / Info",
