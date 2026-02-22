@@ -85,7 +85,6 @@ public partial class DronesEditor : UserControl
         var idBox = new ComboBox
         {
             IsEditable = true,
-            Text = drone.DroneId,
             ItemsSource = cvs.View,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -96,15 +95,19 @@ public partial class DronesEditor : UserControl
             Margin = new Thickness(2, 2, 0, 0)
         };
         UpdateDroneInfo(drone.DroneId, infoTb);
+        bool suppressChange = true;
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
+                if (suppressChange) return;
                 drone.DroneId = idBox.Text;
                 _state.MarkDirty();
                 UpdateDroneInfo(idBox.Text, infoTb);
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        idBox.Text = drone.DroneId;
+        suppressChange = false;
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);
