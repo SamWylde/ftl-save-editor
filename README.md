@@ -22,7 +22,8 @@ Hyperspace and Multiverse mods extend FTL's binary save format with custom data 
 2. Parsing crew members — vanilla fields are editable, HS inline extensions are preserved as opaque blobs
 3. Parsing ship systems (capacity, power, damage, ionization, hack state) — HS custom systems are preserved separately
 4. Using a heuristic scanner to locate and parse weapons, drones, and augments
-5. Preserving rooms, cargo, sector map, and encounters as opaque bytes
+5. Parsing cargo items from the opaque tail after augments
+6. Preserving rooms, sector map, and encounters as opaque bytes
 
 This gives you safe editability of ship resources, crew, systems, and loadout while guaranteeing perfect byte-for-byte round-trip fidelity for all Hyperspace extension data.
 
@@ -38,6 +39,7 @@ This gives you safe editability of ship resources, crew, systems, and loadout wh
 | **Weapons** | Weapon IDs, armed state (add/remove supported) |
 | **Drones** | Drone IDs, armed state, position (add/remove supported) |
 | **Augments** | Augment IDs (add/remove supported) |
+| **Cargo** | Cargo item IDs (add/remove supported) |
 
 ### Multiverse Mod Blueprint Integration
 
@@ -75,7 +77,7 @@ continue_backup_2026-02-21_12-34-56-123.sav
 
 ## Known Limitations
 
-- **Cargo, beacons, and environment editing** are not available in partial mode (these are in the opaque tail after augments).
+- **Beacons and environment editing** are not available in partial mode (these are in the opaque tail after cargo).
 - Room/door semantic editing is not implemented in any mode; raw bytes are preserved for round-trip safety.
 - Weapon/drone/augment detection uses a heuristic scanner. In rare cases this could find a false positive, but the round-trip test ensures no data corruption.
 

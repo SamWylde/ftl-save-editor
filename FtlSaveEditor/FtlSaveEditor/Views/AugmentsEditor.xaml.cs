@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using FtlSaveEditor.Data;
 using FtlSaveEditor.Services;
@@ -58,14 +59,15 @@ public partial class AugmentsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Augment ID (editable ComboBox with suggestions) + blueprint info
+        // Augment ID (editable ComboBox with suggestions + live filter) + blueprint info
         int capturedIndex = index;
         var idPanel = new StackPanel();
+        var cvs = new CollectionViewSource { Source = GetAugmentSuggestions() };
         var idBox = new ComboBox
         {
             IsEditable = true,
             Text = ship.AugmentIds[index],
-            ItemsSource = GetAugmentSuggestions(),
+            ItemsSource = cvs.View,
             VerticalAlignment = VerticalAlignment.Center
         };
         var infoTb = new TextBlock
@@ -85,6 +87,8 @@ public partial class AugmentsEditor : UserControl
                     _state.MarkDirty();
                     UpdateAugmentInfo(idBox.Text, infoTb);
                 }
+                var text = idBox.Text;
+                cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);

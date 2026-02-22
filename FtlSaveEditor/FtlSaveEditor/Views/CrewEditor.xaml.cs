@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
@@ -513,11 +514,12 @@ public partial class CrewEditor : UserControl
         Grid.SetColumn(lbl, colOffset);
         grid.Children.Add(lbl);
 
+        var cvs = new CollectionViewSource { Source = suggestions };
         var box = new ComboBox
         {
             IsEditable = true,
             Text = value,
-            ItemsSource = suggestions,
+            ItemsSource = cvs.View,
             Margin = new Thickness(0, 0, 0, 6),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -526,6 +528,8 @@ public partial class CrewEditor : UserControl
             {
                 setter(box.Text);
                 _state.MarkDirty();
+                var text = box.Text;
+                cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
         Grid.SetRow(box, row);
         Grid.SetColumn(box, colOffset + 1);

@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
@@ -73,13 +74,14 @@ public partial class WeaponsEditor : UserControl
         Grid.SetColumn(idxTb, 0);
         grid.Children.Add(idxTb);
 
-        // Weapon ID (editable ComboBox with suggestions) + blueprint info
+        // Weapon ID (editable ComboBox with suggestions + live filter) + blueprint info
         var idPanel = new StackPanel();
+        var cvs = new CollectionViewSource { Source = GetWeaponSuggestions() };
         var idBox = new ComboBox
         {
             IsEditable = true,
             Text = weapon.WeaponId,
-            ItemsSource = GetWeaponSuggestions(),
+            ItemsSource = cvs.View,
             VerticalAlignment = VerticalAlignment.Center
         };
         var infoTb = new TextBlock
@@ -95,6 +97,8 @@ public partial class WeaponsEditor : UserControl
                 weapon.WeaponId = idBox.Text;
                 _state.MarkDirty();
                 UpdateWeaponInfo(idBox.Text, infoTb);
+                var text = idBox.Text;
+                cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);

@@ -294,7 +294,14 @@ public class SaveFileWriter
         WriteInt(ship.AugmentIds.Count);
         foreach (var aug in ship.AugmentIds) WriteString(aug);
 
-        // Post-augments opaque tail (HS data + cargo + sector map + everything else).
+        // Cargo (if parsed in partial mode).
+        if ((state.Capabilities & EditorCapability.Cargo) != 0)
+        {
+            WriteInt(state.CargoIdList.Count);
+            foreach (var item in state.CargoIdList) WriteString(item);
+        }
+
+        // Post-cargo/post-augments opaque tail (sector map + everything else).
         if (state.OpaqueTailBytes.Length > 0)
             _writer.Write(state.OpaqueTailBytes);
     }
