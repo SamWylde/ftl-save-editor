@@ -135,12 +135,30 @@ public class SaveFileParser
     {
         var stream = _reader.BaseStream;
         long savedPos = stream.Position;
+
+        // Try aligned scan first (step by 4), then fall back to byte-by-byte if no match.
+        // Aligned scan produces fewer false positives. Byte-by-byte is needed when
+        // variable-length strings in the interior (e.g. HS crew extensions) cause the
+        // weapon section to land at a non-4-byte-aligned offset from searchStart.
+        var candidatePositions = ScanForWeaponCandidates(searchStart, stream, stepSize: 4);
+        long result = TryValidateCandidates(candidatePositions, fmt, requireCargoValidation, savedPos, stream);
+        if (result >= 0) return result;
+
+        // Fall back to byte-by-byte scan for unaligned cases.
+        candidatePositions = ScanForWeaponCandidates(searchStart, stream, stepSize: 1);
+        result = TryValidateCandidates(candidatePositions, fmt, requireCargoValidation, savedPos, stream);
+        if (result >= 0) return result;
+
+        stream.Position = savedPos;
+        throw new Exception($"Could not find weapon section scanning from byte offset {searchStart}");
+    }
+
+    private List<long> ScanForWeaponCandidates(long searchStart, Stream stream, int stepSize)
+    {
         var candidatePositions = new List<long>();
 
-        // We know the structure before weapons:
-        // ... rooms ... breaches ... doors ... cloakAnimTicks(4, fmt>=7) ... lockdownCrystalCount(4, fmt>=8) + data ... weaponCount
         // Scan from searchStart looking for: int(count 0-10) + int(strlen 3-50) + ASCII bytes
-        for (long pos = searchStart; pos + 20 < stream.Length; pos += 4)
+        for (long pos = searchStart; pos + 20 < stream.Length; pos += stepSize)
         {
             stream.Position = pos;
             int candidateCount = _reader.ReadInt32();
@@ -205,6 +223,11 @@ public class SaveFileParser
             candidatePositions.Add(pos);
         }
 
+        return candidatePositions;
+    }
+
+    private long TryValidateCandidates(List<long> candidatePositions, int fmt, bool requireCargoValidation, long savedPos, Stream stream)
+    {
         // Pass 1: strict validation with cargo check (vanilla saves).
         if (requireCargoValidation)
         {
@@ -229,8 +252,7 @@ public class SaveFileParser
             }
         }
 
-        stream.Position = savedPos;
-        throw new Exception($"Could not find weapon section scanning from byte offset {searchStart}");
+        return -1;
     }
 
     private static bool IsAsciiIdentifier(byte[] bytes)
@@ -1340,7 +1362,15 @@ public class SaveFileParser
                     teleportAnim = ParseAnimState();
                     unknownPhi = ReadBool();
                 }
-                // NO crystal lockdown in HS/MV format (handled by HS crew powers)
+
+                // Hyperspace replaces crystal lockdown with its own crew powers system,
+                // but still writes 2 trailing ints (always 0) per crew member regardless of race.
+                int hsTrailingInt1 = 0, hsTrailingInt2 = 0;
+                if (fmt >= 7)
+                {
+                    hsTrailingInt1 = ReadInt();
+                    hsTrailingInt2 = ReadInt();
+                }
 
                 var crew = new CrewState
                 {
@@ -1372,6 +1402,7 @@ public class SaveFileParser
                     RepairMasteryOne = repairMasteryOne, RepairMasteryTwo = repairMasteryTwo,
                     CombatMasteryOne = combatMasteryOne, CombatMasteryTwo = combatMasteryTwo,
                     UnknownNu = unknownNu, TeleportAnim = teleportAnim, UnknownPhi = unknownPhi,
+                    HsTrailingInt1 = hsTrailingInt1, HsTrailingInt2 = hsTrailingInt2,
                 };
 
                 crewList.Add(crew);
