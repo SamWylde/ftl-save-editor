@@ -64,6 +64,19 @@ public class FtlVersionProfile
     public int[] MissilesPointerChain { get; init; } = [];
 }
 
+/// <summary>
+/// Result of a Smart Auto-Resolve operation.
+/// </summary>
+public class SmartResolveResult
+{
+    public bool Success { get; init; }
+    public int ValuesResolved { get; init; }
+    public int TotalSeeds { get; init; }
+    public int BestClusterScore { get; init; }
+    public long ClusterBaseAddress { get; init; }
+    public string Summary { get; init; } = "";
+}
+
 public class TrainerService : INotifyPropertyChanged
 {
     public static TrainerService Instance { get; } = new();
@@ -73,11 +86,20 @@ public class TrainerService : INotifyPropertyChanged
     private DispatcherTimer? _refreshTimer;
     private FtlVersionProfile? _activeProfile;
 
+    private TrainerService()
+    {
+        SaveEditorState.Instance.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SaveEditorState.HasFile))
+                OnPropertyChanged(nameof(CanSmartResolve));
+        };
+    }
+
     private bool _isAttached;
     public bool IsAttached
     {
         get => _isAttached;
-        private set { _isAttached = value; OnPropertyChanged(); }
+        private set { _isAttached = value; OnPropertyChanged(); OnPropertyChanged(nameof(CanSmartResolve)); }
     }
 
     private string _statusText = "Not attached — launch FTL and click Attach";
@@ -201,6 +223,24 @@ public class TrainerService : INotifyPropertyChanged
         get => _isScanning;
         private set { _isScanning = value; OnPropertyChanged(); }
     }
+
+    // Smart auto-resolve state
+    private bool _isSmartResolving;
+    public bool IsSmartResolving
+    {
+        get => _isSmartResolving;
+        private set { _isSmartResolving = value; OnPropertyChanged(); }
+    }
+
+    private string _smartResolveStatus = "";
+    public string SmartResolveStatus
+    {
+        get => _smartResolveStatus;
+        private set { _smartResolveStatus = value; OnPropertyChanged(); }
+    }
+
+    public bool CanSmartResolve =>
+        IsAttached && SaveEditorState.Instance.GameState?.PlayerShip != null;
 
     // Known version profiles — these offsets need empirical verification.
     // Starting with community-documented values for vanilla FTL 1.6.x.
@@ -394,6 +434,255 @@ public class TrainerService : INotifyPropertyChanged
         _scanCandidates.Clear();
         ScanStatus = "";
         OnPropertyChanged(nameof(ScanCandidateCount));
+    }
+
+    // Smart Auto-Resolve: use save data to find addresses via proximity clustering
+    public async Task<bool> TryAttachAsync()
+    {
+        var proc = ProcessMemoryService.FindFtlProcess();
+        if (proc == null)
+        {
+            StatusText = "FTL is not running";
+            return false;
+        }
+
+        _process = proc;
+        _processHandle = ProcessMemoryService.OpenProcessHandle(proc.Id);
+
+        if (_processHandle == IntPtr.Zero)
+        {
+            StatusText = "Failed to open process — try running as administrator";
+            return false;
+        }
+
+        bool resolved = TryResolveAddresses();
+
+        IsAttached = true;
+
+        if (resolved)
+        {
+            StatusText = $"Attached to FTL (PID {proc.Id}) — addresses resolved";
+        }
+        else if (CanSmartResolve)
+        {
+            StatusText = $"Attached to FTL (PID {proc.Id}) — trying smart resolve...";
+            var result = await SmartResolveFromSaveAsync();
+            if (!result.Success)
+            {
+                StatusText = $"Attached to FTL (PID {proc.Id}) — use manual scanner or load matching save";
+                DetectedVersion = "Unknown version";
+            }
+        }
+        else
+        {
+            StatusText = $"Attached to FTL (PID {proc.Id}) — load a save file to auto-resolve, or use manual scanner";
+            DetectedVersion = "Unknown version";
+        }
+
+        StartRefreshTimer();
+        return true;
+    }
+
+    public async Task<SmartResolveResult> SmartResolveFromSaveAsync()
+    {
+        var gameState = SaveEditorState.Instance.GameState;
+        if (!IsAttached || _processHandle == IntPtr.Zero || gameState?.PlayerShip == null)
+        {
+            return new SmartResolveResult
+            {
+                Success = false,
+                Summary = "Not attached or no save loaded"
+            };
+        }
+
+        IsSmartResolving = true;
+        SmartResolveStatus = "Scanning for save values in memory...";
+
+        var ship = gameState.PlayerShip;
+
+        // Build seed values: (name, value, TrainedValue target)
+        var seeds = new List<(string Name, int Value, TrainedValue Target)>
+        {
+            ("Hull", ship.HullAmt, Hull),
+            ("Scrap", ship.ScrapAmt, Scrap),
+            ("Fuel", ship.FuelAmt, Fuel),
+            ("Missiles", ship.MissilesAmt, Missiles),
+            ("DroneParts", ship.DronePartsAmt, DroneParts),
+        };
+
+        // Filter out trivial values (0, 1) that produce too many false positives
+        var uniqueValues = seeds
+            .Where(s => s.Value >= 2)
+            .Select(s => s.Value)
+            .Distinct()
+            .ToArray();
+
+        if (uniqueValues.Length < 2)
+        {
+            IsSmartResolving = false;
+            SmartResolveStatus = "Need at least 2 non-trivial seed values (most are 0/1)";
+            return new SmartResolveResult
+            {
+                Success = false,
+                TotalSeeds = seeds.Count,
+                Summary = "Need at least 2 resource values >= 2 for scanning"
+            };
+        }
+
+        // Phase 1: Single-pass multi-value scan
+        var handle = _processHandle;
+        var scanResults = await Task.Run(() =>
+            ProcessMemoryService.ScanForMultipleInt32(handle, uniqueValues));
+
+        SmartResolveStatus = "Clustering by proximity...";
+
+        // Check which seeds actually have candidates
+        var seedsWithCandidates = seeds
+            .Where(s => s.Value >= 2 && scanResults.ContainsKey(s.Value)
+                        && scanResults[s.Value].Count > 0)
+            .ToList();
+
+        if (seedsWithCandidates.Count < 2)
+        {
+            IsSmartResolving = false;
+            SmartResolveStatus = "Could not find enough seed values in memory";
+            return new SmartResolveResult
+            {
+                Success = false,
+                Summary = "Fewer than 2 seed values found in memory — is FTL running this save?"
+            };
+        }
+
+        // Phase 2: Proximity clustering
+        // Pick the seed with the fewest candidates as the anchor
+        var anchor = seedsWithCandidates
+            .OrderBy(s => scanResults[s.Value].Count)
+            .First();
+
+        const int CLUSTER_RANGE = 4096;
+
+        var bestResult = await Task.Run(() =>
+        {
+            int bestScore = 0;
+            long bestCenter = 0;
+            var bestAssignments = new Dictionary<string, IntPtr>();
+
+            foreach (var anchorAddr in scanResults[anchor.Value])
+            {
+                long anchorLong = anchorAddr.ToInt64();
+                int score = 0;
+                var assignments = new Dictionary<string, IntPtr>();
+                var usedAddresses = new HashSet<long>();
+
+                foreach (var seed in seeds)
+                {
+                    if (seed.Value < 2 || !scanResults.ContainsKey(seed.Value))
+                        continue;
+
+                    // Find the closest candidate within range not already assigned
+                    IntPtr bestMatch = IntPtr.Zero;
+                    long bestDist = long.MaxValue;
+
+                    foreach (var candidateAddr in scanResults[seed.Value])
+                    {
+                        long candidateLong = candidateAddr.ToInt64();
+                        long dist = Math.Abs(candidateLong - anchorLong);
+                        if (dist <= CLUSTER_RANGE && dist < bestDist
+                            && !usedAddresses.Contains(candidateLong))
+                        {
+                            bestDist = dist;
+                            bestMatch = candidateAddr;
+                        }
+                    }
+
+                    if (bestMatch != IntPtr.Zero)
+                    {
+                        score++;
+                        assignments[seed.Name] = bestMatch;
+                        usedAddresses.Add(bestMatch.ToInt64());
+                    }
+                }
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestCenter = anchorLong;
+                    bestAssignments = new Dictionary<string, IntPtr>(assignments);
+                }
+
+                if (bestScore == seedsWithCandidates.Count)
+                    break; // perfect score
+            }
+
+            return (bestScore, bestCenter, bestAssignments);
+        });
+
+        // Phase 3: Assign resolved addresses
+        SmartResolveStatus = "Assigning addresses...";
+
+        int resolved = 0;
+        foreach (var seed in seeds)
+        {
+            if (bestResult.bestAssignments.TryGetValue(seed.Name, out var addr))
+            {
+                seed.Target.ResolvedAddress = addr;
+                resolved++;
+            }
+        }
+
+        // Try to resolve 0/1 values by reading near the cluster center
+        if (bestResult.bestCenter != 0)
+        {
+            foreach (var seed in seeds.Where(s => s.Value < 2
+                && !bestResult.bestAssignments.ContainsKey(s.Name)))
+            {
+                for (int offset = -CLUSTER_RANGE; offset <= CLUSTER_RANGE; offset += 4)
+                {
+                    try
+                    {
+                        var testAddr = (IntPtr)(bestResult.bestCenter + offset);
+                        long testLong = testAddr.ToInt64();
+                        int val = ProcessMemoryService.ReadInt32(_processHandle, testAddr);
+                        if (val == seed.Value
+                            && !bestResult.bestAssignments.Values.Any(a => a.ToInt64() == testLong))
+                        {
+                            seed.Target.ResolvedAddress = testAddr;
+                            bestResult.bestAssignments[seed.Name] = testAddr;
+                            resolved++;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
+        bool success = resolved >= 3;
+        DetectedVersion = success
+            ? $"Smart-resolved ({resolved}/5 values)"
+            : "Smart resolve: insufficient matches";
+
+        var summary = success
+            ? $"Found {resolved}/5 resource addresses near 0x{bestResult.bestCenter:X8}"
+            : $"Only found {resolved} matches — ensure FTL is running this save";
+
+        IsSmartResolving = false;
+        SmartResolveStatus = summary;
+
+        if (success)
+        {
+            StatusText = $"Attached (PID {_process?.Id}) — smart-resolved {resolved}/5 values";
+        }
+
+        return new SmartResolveResult
+        {
+            Success = success,
+            ValuesResolved = resolved,
+            TotalSeeds = seeds.Count,
+            BestClusterScore = bestResult.bestScore,
+            ClusterBaseAddress = bestResult.bestCenter,
+            Summary = summary
+        };
     }
 
     private bool TryResolveAddresses()

@@ -35,6 +35,7 @@ public partial class TrainerView : UserControl
             NotAttachedBanner.Visibility = Visibility.Collapsed;
             AttachedBanner.Visibility = Visibility.Visible;
             AttachedStatusText.Text = _trainer.StatusText;
+            ResolveMethodLabel.Text = _trainer.DetectedVersion;
         }
         else
         {

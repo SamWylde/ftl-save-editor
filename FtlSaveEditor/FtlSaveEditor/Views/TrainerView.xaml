@@ -22,12 +22,17 @@
                 BorderBrush="{StaticResource AccentGreenBrush}"
                 BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,0,12"
                 Visibility="Collapsed">
-            <StackPanel Orientation="Horizontal">
-                <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}"
-                         VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBlock x:Name="AttachedStatusText" TextWrapping="Wrap"
-                           Foreground="{StaticResource AccentGreenBrush}" FontSize="12"
-                           Text="Attached — values update in real-time"/>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentGreenBrush}"
+                             VerticalAlignment="Center" Margin="0,0,8,0"/>
+                    <TextBlock x:Name="AttachedStatusText" TextWrapping="Wrap"
+                               Foreground="{StaticResource AccentGreenBrush}" FontSize="12"
+                               Text="Attached — values update in real-time"/>
+                </StackPanel>
+                <TextBlock x:Name="ResolveMethodLabel"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="11" Margin="18,4,0,0"/>
             </StackPanel>
         </Border>
 
