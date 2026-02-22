@@ -80,7 +80,6 @@ public partial class WeaponsEditor : UserControl
         var idBox = new ComboBox
         {
             IsEditable = true,
-            Text = weapon.WeaponId,
             ItemsSource = cvs.View,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -91,15 +90,19 @@ public partial class WeaponsEditor : UserControl
             Margin = new Thickness(2, 2, 0, 0)
         };
         UpdateWeaponInfo(weapon.WeaponId, infoTb);
+        bool suppressChange = true;
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
+                if (suppressChange) return;
                 weapon.WeaponId = idBox.Text;
                 _state.MarkDirty();
                 UpdateWeaponInfo(idBox.Text, infoTb);
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        idBox.Text = weapon.WeaponId;
+        suppressChange = false;
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);

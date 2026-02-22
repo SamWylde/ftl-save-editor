@@ -227,6 +227,9 @@ public partial class MainWindow : Window
             _state.LoadFile(path);
             OnFileLoaded();
             ShowParseWarningsIfAny();
+            // Reset dirty flag after all editors have initialized
+            // (ComboBox/CheckBox init events can spuriously mark dirty)
+            _state.IsDirty = false;
         }
         catch (System.IO.IOException ioEx)
         {

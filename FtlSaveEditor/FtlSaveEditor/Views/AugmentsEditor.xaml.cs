@@ -66,7 +66,6 @@ public partial class AugmentsEditor : UserControl
         var idBox = new ComboBox
         {
             IsEditable = true,
-            Text = ship.AugmentIds[index],
             ItemsSource = cvs.View,
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -78,9 +77,11 @@ public partial class AugmentsEditor : UserControl
             TextWrapping = TextWrapping.Wrap
         };
         UpdateAugmentInfo(ship.AugmentIds[index], infoTb);
+        bool suppressChange = true;
         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
+                if (suppressChange) return;
                 if (capturedIndex < ship.AugmentIds.Count)
                 {
                     ship.AugmentIds[capturedIndex] = idBox.Text;
@@ -90,6 +91,8 @@ public partial class AugmentsEditor : UserControl
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        idBox.Text = ship.AugmentIds[index];
+        suppressChange = false;
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);
