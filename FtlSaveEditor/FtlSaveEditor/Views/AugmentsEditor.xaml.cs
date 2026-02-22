@@ -66,7 +66,9 @@ public partial class AugmentsEditor : UserControl
         var idBox = new ComboBox
         {
             IsEditable = true,
+            IsTextSearchEnabled = false,
             ItemsSource = cvs.View,
+            MaxDropDownHeight = 300,
             VerticalAlignment = VerticalAlignment.Center
         };
         var infoTb = new TextBlock
@@ -91,6 +93,7 @@ public partial class AugmentsEditor : UserControl
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        idBox.DropDownOpened += (_, _) => { cvs.View.Filter = null; };
         idBox.Text = ship.AugmentIds[index];
         suppressChange = false;
         idPanel.Children.Add(idBox);

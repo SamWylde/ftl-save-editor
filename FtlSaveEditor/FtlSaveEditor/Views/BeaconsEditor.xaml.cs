@@ -238,7 +238,9 @@ public partial class BeaconsEditor : UserControl
                         var idBox = new ComboBox
                         {
                             IsEditable = true,
+                            IsTextSearchEnabled = false,
                             ItemsSource = cvs.View,
+                            MaxDropDownHeight = 300,
                             Width = 240,
                             VerticalAlignment = VerticalAlignment.Center
                         };
@@ -261,6 +263,7 @@ public partial class BeaconsEditor : UserControl
                                 var text = idBox.Text;
                                 cvs.View.Filter = f => ((string)f).Contains(text, StringComparison.OrdinalIgnoreCase);
                             }));
+                        idBox.DropDownOpened += (_, _) => { cvs.View.Filter = null; };
                         idBox.Text = item.ItemId;
                         suppressChange = false;
                         idPanel.Children.Add(idBox);
