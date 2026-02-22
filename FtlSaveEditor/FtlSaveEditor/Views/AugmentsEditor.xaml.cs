@@ -101,8 +101,14 @@ public partial class AugmentsEditor : UserControl
             idBox.Text = savedText;
             suppressChange = false;
         };
-        idBox.Text = ship.AugmentIds[index];
-        suppressChange = false;
+        var correctAugId = ship.AugmentIds[index];
+        idBox.Text = correctAugId;
+        idBox.Loaded += (_, _) =>
+        {
+            suppressChange = true;
+            idBox.Text = correctAugId;
+            suppressChange = false;
+        };
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);

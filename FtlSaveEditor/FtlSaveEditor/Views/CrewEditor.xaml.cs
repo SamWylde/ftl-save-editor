@@ -554,8 +554,14 @@ public partial class CrewEditor : UserControl
             box.Text = savedText;
             suppressChange = false;
         };
-        box.Text = value;
-        suppressChange = false;
+        var correctValue = value;
+        box.Text = correctValue;
+        box.Loaded += (_, _) =>
+        {
+            suppressChange = true;
+            box.Text = correctValue;
+            suppressChange = false;
+        };
         Grid.SetRow(box, row);
         Grid.SetColumn(box, colOffset + 1);
         grid.Children.Add(box);

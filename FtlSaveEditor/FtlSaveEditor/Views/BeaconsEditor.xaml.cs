@@ -271,8 +271,14 @@ public partial class BeaconsEditor : UserControl
                             idBox.Text = savedText;
                             suppressChange = false;
                         };
-                        idBox.Text = item.ItemId;
-                        suppressChange = false;
+                        var correctItemId = item.ItemId;
+                        idBox.Text = correctItemId;
+                        idBox.Loaded += (_, _) =>
+                        {
+                            suppressChange = true;
+                            idBox.Text = correctItemId;
+                            suppressChange = false;
+                        };
                         idPanel.Children.Add(idBox);
                         idPanel.Children.Add(infoTb);
                         itemPanel.Children.Add(idPanel);
