@@ -103,7 +103,14 @@ public partial class WeaponsEditor : UserControl
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
-        idBox.DropDownOpened += (_, _) => { cvs.View.Filter = null; };
+        idBox.DropDownOpened += (_, _) =>
+        {
+            suppressChange = true;
+            var savedText = idBox.Text;
+            cvs.View.Filter = null;
+            idBox.Text = savedText;
+            suppressChange = false;
+        };
         idBox.Text = weapon.WeaponId;
         suppressChange = false;
         idPanel.Children.Add(idBox);

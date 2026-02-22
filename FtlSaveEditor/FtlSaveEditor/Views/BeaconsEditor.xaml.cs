@@ -263,7 +263,14 @@ public partial class BeaconsEditor : UserControl
                                 var text = idBox.Text;
                                 cvs.View.Filter = f => ((string)f).Contains(text, StringComparison.OrdinalIgnoreCase);
                             }));
-                        idBox.DropDownOpened += (_, _) => { cvs.View.Filter = null; };
+                        idBox.DropDownOpened += (_, _) =>
+                        {
+                            suppressChange = true;
+                            var savedText = idBox.Text;
+                            cvs.View.Filter = null;
+                            idBox.Text = savedText;
+                            suppressChange = false;
+                        };
                         idBox.Text = item.ItemId;
                         suppressChange = false;
                         idPanel.Children.Add(idBox);

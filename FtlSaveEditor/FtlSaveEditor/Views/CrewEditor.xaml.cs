@@ -548,7 +548,11 @@ public partial class CrewEditor : UserControl
             }));
         box.DropDownOpened += (_, _) =>
         {
-            cvs.View.Filter = null; // Show all items when browsing
+            suppressChange = true;
+            var savedText = box.Text;
+            cvs.View.Filter = null;
+            box.Text = savedText;
+            suppressChange = false;
         };
         box.Text = value;
         suppressChange = false;
