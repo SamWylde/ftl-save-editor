@@ -1,6 +1,8 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
 using FtlSaveEditor.Services;
 
@@ -223,7 +225,7 @@ public partial class CrewEditor : UserControl
 
         int row = 0;
         AddFieldRow(basicGrid, ref row, 0, "Name", crew.Name, v => crew.Name = v);
-        AddFieldRow(basicGrid, ref row, 0, "Race", crew.Race, v => crew.Race = v);
+        AddComboFieldRow(basicGrid, ref row, 0, "Race", crew.Race, v => crew.Race = v, GetRaceSuggestions());
 
         bool isHs = crew.HsInlinePreStringBytes.Length > 0;
 
@@ -482,6 +484,54 @@ public partial class CrewEditor : UserControl
             Foreground = (SolidColorBrush)FindResource(colorKey),
             Margin = new Thickness(0, 0, 0, 8)
         };
+    }
+
+    private static readonly string[] VanillaRaces =
+        ["human", "engi", "mantis", "rock", "crystal", "slug", "zoltan", "lanius", "ghost"];
+
+    private string[] GetRaceSuggestions()
+    {
+        var ship = _state.GameState?.PlayerShip;
+        var saveRaces = ship?.Crew.Select(c => c.Race).Where(r => !string.IsNullOrEmpty(r)) ?? [];
+        var modRaces = _state.Blueprints.CrewRaces;
+        return VanillaRaces.Concat(saveRaces).Concat(modRaces)
+            .Distinct().OrderBy(r => r).ToArray();
+    }
+
+    private void AddComboFieldRow(Grid grid, ref int row, int colOffset, string label,
+        string value, Action<string> setter, string[] suggestions)
+    {
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var lbl = new Label
+        {
+            Content = label,
+            Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetRow(lbl, row);
+        Grid.SetColumn(lbl, colOffset);
+        grid.Children.Add(lbl);
+
+        var box = new ComboBox
+        {
+            IsEditable = true,
+            Text = value,
+            ItemsSource = suggestions,
+            Margin = new Thickness(0, 0, 0, 6),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        box.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new RoutedEventHandler((_, _) =>
+            {
+                setter(box.Text);
+                _state.MarkDirty();
+            }));
+        Grid.SetRow(box, row);
+        Grid.SetColumn(box, colOffset + 1);
+        grid.Children.Add(box);
+
+        row++;
     }
 
     private void AddFieldRow(Grid grid, ref int row, int colOffset, string label, string value, Action<string> setter)

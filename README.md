@@ -52,6 +52,8 @@ Supported mod file locations:
 
 ### Other Features
 
+- **Item Browser** tab for searching, sorting, and filtering all mod items (weapons, drones, augments) with stats
+- **Crew race dropdown** with all Multiverse races (300+) instead of plain text entry
 - In-app Help / Info panel with parse mode details and save format documentation
 - Automatic backups before every save (timestamped, collision-safe)
 - Parse diagnostics logged to `%LOCALAPPDATA%\FtlSaveEditor\logs\`
@@ -156,7 +158,7 @@ FtlSaveEditor/
     FileService.cs     - Save detection, open/save, backup management
     ModBlueprintScanner.cs - Auto-detects FTL install, parses mod ZIP blueprints
   Views/
-    11 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc, Help
+    12 editor views    - Ship, Crew, Systems, Weapons, Drones, Augments, Cargo, StateVars, Beacons, Misc, Help, ItemBrowser
 ```
 
 ## FTL Save Format
