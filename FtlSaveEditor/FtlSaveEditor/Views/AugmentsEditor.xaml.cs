@@ -158,7 +158,7 @@ public partial class AugmentsEditor : UserControl
             if (bp.Cost > 0) parts.Add($"{bp.Cost}scrap");
             if (bp.Stackable) parts.Add("stackable");
             infoTb.Text = string.Join("  |  ", parts);
-            infoTb.ToolTip = string.IsNullOrEmpty(bp.Description) ? null : bp.Description;
+            infoTb.ToolTip = CreateDarkTooltip(bp.Description);
             infoTb.Visibility = Visibility.Visible;
         }
         else
@@ -166,6 +166,24 @@ public partial class AugmentsEditor : UserControl
             infoTb.Text = "";
             infoTb.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private object? CreateDarkTooltip(string? description)
+    {
+        if (string.IsNullOrEmpty(description)) return null;
+        return new ToolTip
+        {
+            Content = new TextBlock
+            {
+                Text = description,
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 400,
+                Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush")
+            },
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("BorderBrush"),
+            Padding = new Thickness(8, 6, 8, 6)
+        };
     }
 
     private void AddAugment_Click(object sender, RoutedEventArgs e)

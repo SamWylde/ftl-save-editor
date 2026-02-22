@@ -197,7 +197,7 @@ public partial class WeaponsEditor : UserControl
         if (_state.Blueprints.Weapons.TryGetValue(id, out var bp))
         {
             infoTb.Text = $"{bp.Title}  |  {bp.Type}  {bp.Damage}dmg x{bp.Shots}  {bp.Power}pwr  {bp.Cooldown}s  {bp.Cost}scrap";
-            infoTb.ToolTip = string.IsNullOrEmpty(bp.Description) ? null : bp.Description;
+            infoTb.ToolTip = CreateDarkTooltip(bp.Description);
             infoTb.Visibility = Visibility.Visible;
         }
         else
@@ -205,6 +205,24 @@ public partial class WeaponsEditor : UserControl
             infoTb.Text = "";
             infoTb.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private object? CreateDarkTooltip(string? description)
+    {
+        if (string.IsNullOrEmpty(description)) return null;
+        return new ToolTip
+        {
+            Content = new TextBlock
+            {
+                Text = description,
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 400,
+                Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush")
+            },
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("BorderBrush"),
+            Padding = new Thickness(8, 6, 8, 6)
+        };
     }
 
     private void AddWeapon_Click(object sender, RoutedEventArgs e)
