@@ -93,7 +93,14 @@ public partial class AugmentsEditor : UserControl
                 var text = idBox.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
-        idBox.DropDownOpened += (_, _) => { cvs.View.Filter = null; };
+        idBox.DropDownOpened += (_, _) =>
+        {
+            suppressChange = true;
+            var savedText = idBox.Text;
+            cvs.View.Filter = null;
+            idBox.Text = savedText;
+            suppressChange = false;
+        };
         idBox.Text = ship.AugmentIds[index];
         suppressChange = false;
         idPanel.Children.Add(idBox);
