@@ -238,7 +238,6 @@ public partial class BeaconsEditor : UserControl
                         var idBox = new ComboBox
                         {
                             IsEditable = true,
-                            Text = item.ItemId,
                             ItemsSource = cvs.View,
                             Width = 240,
                             VerticalAlignment = VerticalAlignment.Center
@@ -251,15 +250,19 @@ public partial class BeaconsEditor : UserControl
                             TextWrapping = TextWrapping.Wrap
                         };
                         UpdateStoreItemInfo(item.ItemId, infoTb);
+                        bool suppressChange = true;
                         idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
                             new RoutedEventHandler((_, _) =>
                             {
+                                if (suppressChange) return;
                                 capturedItem.ItemId = idBox.Text;
                                 _state.MarkDirty();
                                 UpdateStoreItemInfo(idBox.Text, infoTb);
                                 var text = idBox.Text;
                                 cvs.View.Filter = f => ((string)f).Contains(text, StringComparison.OrdinalIgnoreCase);
                             }));
+                        idBox.Text = item.ItemId;
+                        suppressChange = false;
                         idPanel.Children.Add(idBox);
                         idPanel.Children.Add(infoTb);
                         itemPanel.Children.Add(idPanel);

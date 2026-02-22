@@ -266,6 +266,19 @@ public class SaveFileParserWriterTests
             foreach (var c in parsed.PlayerShip.Crew)
                 _output.WriteLine($"  Crew: '{c.Name}' ({c.Race}) HP={c.Health} HSPre={c.HsInlinePreStringBytes?.Length} HSPost={c.HsInlinePostStringBytes?.Length}");
         }
+        _output.WriteLine($"Weapons ({parsed.PlayerShip?.Weapons?.Count}):");
+        if (parsed.PlayerShip?.Weapons != null)
+            foreach (var w in parsed.PlayerShip.Weapons)
+                _output.WriteLine($"  {w.WeaponId} armed={w.Armed}");
+        _output.WriteLine($"Drones ({parsed.PlayerShip?.Drones?.Count}):");
+        _output.WriteLine($"Augments ({parsed.PlayerShip?.AugmentIds?.Count}):");
+        if (parsed.PlayerShip?.AugmentIds != null)
+            foreach (var a in parsed.PlayerShip.AugmentIds)
+                _output.WriteLine($"  {a}");
+        _output.WriteLine($"Cargo ({parsed.CargoIdList?.Count}):");
+        if (parsed.CargoIdList != null)
+            foreach (var c in parsed.CargoIdList)
+                _output.WriteLine($"  {c}");
 
         if (crewParsed)
         {

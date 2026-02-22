@@ -103,6 +103,20 @@ public class SaveFileParser
                             $"Editable: {editableList}. Other sections preserved as-is.";
                         partialState.ParseWarnings.Add(partialWarning);
                         partialState.ParseDiagnostics.Add(fullDiagnostic);
+
+                        // Diagnostic: log what partial parse produced
+                        var diagLines = new List<string>
+                        {
+                            $"Partial parse success: {partialState.PlayerShip?.ShipName} ({partialState.PlayerShip?.ShipBlueprintId})",
+                            $"Weapons ({partialState.PlayerShip?.Weapons?.Count}): {string.Join(", ", partialState.PlayerShip?.Weapons?.Select(w => w.WeaponId) ?? [])}",
+                            $"Augments ({partialState.PlayerShip?.AugmentIds?.Count}): {string.Join(", ", partialState.PlayerShip?.AugmentIds ?? [])}",
+                            $"Cargo ({partialState.CargoIdList?.Count}): {string.Join(", ", partialState.CargoIdList ?? [])}"
+                        };
+                        var diagPath = System.IO.Path.Combine(
+                            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                            "FtlSaveEditor", "logs", "partial_parse_diag.log");
+                        try { System.IO.File.WriteAllText(diagPath, string.Join("\n", diagLines)); } catch { }
+
                         return partialState;
                     }
                 }
