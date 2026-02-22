@@ -178,7 +178,7 @@ public class SaveFileParser
                 {
                     if (pos + 12 > stream.Length) continue;
                     int augCount = _reader.ReadInt32();
-                    if (augCount < 0 || augCount > 20) continue;
+                    if (augCount < 0 || augCount > 10) continue;
                     if (augCount > 0)
                     {
                         int augStrLen = _reader.ReadInt32();
@@ -243,13 +243,28 @@ public class SaveFileParser
 
         // Pass 2: relaxed validation without cargo check (needed for Hyperspace saves
         // where HS extension data sits between augments and cargo).
+        // First prefer candidates with non-zero weapon count (most ships have weapons),
+        // then fall back to zero-weapon candidates.
+        long bestRelaxed = -1;
         foreach (var candidatePos in candidatePositions.Distinct().OrderBy(p => p))
         {
             if (ValidateWeaponSectionCandidate(candidatePos, fmt, validateCargo: false))
             {
-                stream.Position = savedPos;
-                return candidatePos;
+                // Check if this candidate has weapons (non-zero weapon count)
+                stream.Position = candidatePos;
+                int wepCount = _reader.ReadInt32();
+                if (wepCount > 0)
+                {
+                    stream.Position = savedPos;
+                    return candidatePos;  // Prefer first candidate with actual weapons
+                }
+                if (bestRelaxed < 0) bestRelaxed = candidatePos;  // Remember first zero-weapon fallback
             }
+        }
+        if (bestRelaxed >= 0)
+        {
+            stream.Position = savedPos;
+            return bestRelaxed;
         }
 
         return -1;
@@ -789,7 +804,7 @@ public class SaveFileParser
                 }
             }
 
-            if (!TryReadBoundedCount(0, 20, out int augmentCount))
+            if (!TryReadBoundedCount(0, 10, out int augmentCount))
             {
                 return false;
             }
