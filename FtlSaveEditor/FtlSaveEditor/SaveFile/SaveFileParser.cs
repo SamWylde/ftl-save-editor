@@ -258,7 +258,7 @@ public class SaveFileParser
                     stream.Position = savedPos;
                     return candidatePos;  // Prefer first candidate with actual weapons
                 }
-                if (bestRelaxed < 0) bestRelaxed = candidatePos;  // Remember first zero-weapon fallback
+                bestRelaxed = candidatePos;  // Keep updating — prefer LAST (highest offset) zero-weapon candidate
             }
         }
         if (bestRelaxed >= 0)
