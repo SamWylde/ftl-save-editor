@@ -530,19 +530,22 @@ public partial class CrewEditor : UserControl
         var box = new ComboBox
         {
             IsEditable = true,
-            Text = value,
             ItemsSource = cvs.View,
             Margin = new Thickness(0, 0, 0, 6),
             VerticalAlignment = VerticalAlignment.Center
         };
+        bool suppressChange = true;
         box.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
             new RoutedEventHandler((_, _) =>
             {
+                if (suppressChange) return;
                 setter(box.Text);
                 _state.MarkDirty();
                 var text = box.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        box.Text = value;
+        suppressChange = false;
         Grid.SetRow(box, row);
         Grid.SetColumn(box, colOffset + 1);
         grid.Children.Add(box);
