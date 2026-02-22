@@ -530,7 +530,9 @@ public partial class CrewEditor : UserControl
         var box = new ComboBox
         {
             IsEditable = true,
+            IsTextSearchEnabled = false,
             ItemsSource = cvs.View,
+            MaxDropDownHeight = 300,
             Margin = new Thickness(0, 0, 0, 6),
             VerticalAlignment = VerticalAlignment.Center
         };
@@ -544,6 +546,10 @@ public partial class CrewEditor : UserControl
                 var text = box.Text;
                 cvs.View.Filter = item => ((string)item).Contains(text, StringComparison.OrdinalIgnoreCase);
             }));
+        box.DropDownOpened += (_, _) =>
+        {
+            cvs.View.Filter = null; // Show all items when browsing
+        };
         box.Text = value;
         suppressChange = false;
         Grid.SetRow(box, row);
