@@ -35,7 +35,7 @@ This gives you safe editability of ship resources, crew, systems, and loadout wh
 | **State Variables** | All quest/progression key-value pairs |
 | **Ship** | Hull, fuel, scrap, missiles, drone parts |
 | **Crew** | Name, race, health, all 6 skills, masteries, position, stats (add/remove supported) |
-| **Systems** | Capacity, power, damaged bars, ionized bars, hack level, hacked state |
+| **Systems** | Capacity, power, damaged bars, ionized bars, hack level, hacked state, clonebay/battery/shields/cloaking sub-state |
 | **Weapons** | Weapon IDs, armed state (add/remove supported) |
 | **Drones** | Drone IDs, armed state, position (add/remove supported) |
 | **Augments** | Augment IDs (add/remove supported) |
@@ -54,8 +54,14 @@ Supported mod file locations:
 
 ### Other Features
 
-- **Item Browser** tab for searching, sorting, and filtering all mod items (weapons, drones, augments) with stats
+- **Item Browser** tab for searching, sorting, and filtering all mod items (weapons, drones, augments) with stats — click any row to copy the item ID to clipboard
+- **Live search filter** on all item dropdowns (weapons, drones, augments, cargo, beacon store items) — type to filter the list in real time
+- **Blueprint info** shown inline for all item fields — weapon stats, drone type/power, augment cost/stackability
 - **Crew race dropdown** with all Multiverse races (300+) instead of plain text entry
+- **Crew mastery checkboxes** (M1/M2) for all 6 skills directly in the skill grid
+- **Sector state editing** — waiting flag, hazards visibility, sector visitation map
+- **Quest event editing** — quest event map and distant quest events with add/remove
+- **Format 2+ fields** — secondary flagship/hazard/beacon fields for format 7+ saves
 - In-app Help / Info panel with parse mode details and save format documentation
 - Automatic backups before every save (timestamped, collision-safe)
 - Parse diagnostics logged to `%LOCALAPPDATA%\FtlSaveEditor\logs\`
