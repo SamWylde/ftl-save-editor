@@ -36,6 +36,30 @@
             </StackPanel>
         </Border>
 
+        <!-- Smart Auto-Resolve -->
+        <Border Background="{StaticResource BgMediumBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SMART AUTO-RESOLVE" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                           Margin="0,0,0,8"
+                           Text="Load a save file in the editor, then attach to FTL running that same save. The trainer will scan memory for your known resource values and auto-detect addresses — works with any FTL version."/>
+
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                    <Button x:Name="SmartResolveBtn" Content="Auto-Resolve from Save"
+                            Style="{StaticResource DarkButton}" Margin="0,0,8,0"
+                            IsEnabled="False"/>
+                    <TextBlock x:Name="SmartResolveStatus"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12" TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
         <!-- Instructions -->
         <Border Background="{StaticResource BgMediumBrush}"
                 BorderBrush="{StaticResource BorderBrush}"

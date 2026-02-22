@@ -25,21 +25,47 @@ public partial class TrainerConnectView : UserControl
                 _trainer.RefreshIntervalMs = ms;
         };
 
-        AttachBtn.Click += (_, _) =>
+        AttachBtn.Click += async (_, _) =>
         {
-            _trainer.TryAttach();
+            AttachBtn.IsEnabled = false;
+            await _trainer.TryAttachAsync();
             UpdateUi();
         };
 
         DetachBtn.Click += (_, _) =>
         {
             _trainer.Detach();
+            SmartResolveStatus.Text = "";
+            UpdateUi();
+        };
+
+        SmartResolveBtn.Click += async (_, _) =>
+        {
+            SmartResolveBtn.IsEnabled = false;
+            SmartResolveStatus.Text = "Scanning...";
+            SmartResolveStatus.Foreground = (SolidColorBrush)FindResource("AccentOrangeBrush");
+
+            var result = await _trainer.SmartResolveFromSaveAsync();
+
+            SmartResolveStatus.Text = result.Summary;
+            SmartResolveStatus.Foreground = (SolidColorBrush)FindResource(
+                result.Success ? "AccentGreenBrush" : "AccentRedBrush");
+            SmartResolveBtn.IsEnabled = _trainer.CanSmartResolve;
             UpdateUi();
         };
 
         _trainer.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName is nameof(TrainerService.IsAttached) or nameof(TrainerService.StatusText) or nameof(TrainerService.DetectedVersion))
+            if (args.PropertyName is nameof(TrainerService.IsAttached)
+                or nameof(TrainerService.StatusText)
+                or nameof(TrainerService.DetectedVersion)
+                or nameof(TrainerService.CanSmartResolve))
+                Dispatcher.Invoke(UpdateUi);
+        };
+
+        SaveEditorState.Instance.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(SaveEditorState.HasFile))
                 Dispatcher.Invoke(UpdateUi);
         };
 
@@ -55,5 +81,6 @@ public partial class TrainerConnectView : UserControl
             : (SolidColorBrush)FindResource("AccentRedBrush");
         AttachBtn.IsEnabled = !_trainer.IsAttached;
         DetachBtn.IsEnabled = _trainer.IsAttached;
+        SmartResolveBtn.IsEnabled = _trainer.CanSmartResolve && !_trainer.IsSmartResolving;
     }
 }
