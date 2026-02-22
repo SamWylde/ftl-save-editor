@@ -112,7 +112,13 @@ public partial class WeaponsEditor : UserControl
             suppressChange = false;
         };
         idBox.Text = weapon.WeaponId;
-        suppressChange = false;
+        var correctWeaponId = weapon.WeaponId;
+        idBox.Loaded += (_, _) =>
+        {
+            suppressChange = true;
+            idBox.Text = correctWeaponId;
+            suppressChange = false;
+        };
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);

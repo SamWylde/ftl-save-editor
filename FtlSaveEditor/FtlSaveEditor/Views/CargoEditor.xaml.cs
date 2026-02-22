@@ -101,8 +101,14 @@ public partial class CargoEditor : UserControl
             idBox.Text = savedText;
             suppressChange = false;
         };
-        idBox.Text = gs.CargoIdList[index];
-        suppressChange = false;
+        var correctCargoId = gs.CargoIdList[index];
+        idBox.Text = correctCargoId;
+        idBox.Loaded += (_, _) =>
+        {
+            suppressChange = true;
+            idBox.Text = correctCargoId;
+            suppressChange = false;
+        };
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);

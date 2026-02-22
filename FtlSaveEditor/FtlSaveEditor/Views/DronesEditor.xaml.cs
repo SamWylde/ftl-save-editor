@@ -116,8 +116,14 @@ public partial class DronesEditor : UserControl
             idBox.Text = savedText;
             suppressChange = false;
         };
-        idBox.Text = drone.DroneId;
-        suppressChange = false;
+        var correctDroneId = drone.DroneId;
+        idBox.Text = correctDroneId;
+        idBox.Loaded += (_, _) =>
+        {
+            suppressChange = true;
+            idBox.Text = correctDroneId;
+            suppressChange = false;
+        };
         idPanel.Children.Add(idBox);
         idPanel.Children.Add(infoTb);
         Grid.SetColumn(idPanel, 1);
