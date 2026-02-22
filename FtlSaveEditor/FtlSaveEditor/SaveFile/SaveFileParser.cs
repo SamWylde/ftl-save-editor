@@ -91,10 +91,12 @@ public class SaveFileParser
                     {
                         bool crewParsed = (partialState.Capabilities & EditorCapability.Crew) != 0;
                         bool systemsParsed = (partialState.Capabilities & EditorCapability.Systems) != 0;
+                        bool cargoParsed = (partialState.Capabilities & EditorCapability.Cargo) != 0;
                         var parts = new List<string> { "ship" };
                         if (crewParsed) parts.Add("crew");
                         if (systemsParsed) parts.Add("systems");
                         parts.AddRange(new[] { "weapons", "drones", "augments" });
+                        if (cargoParsed) parts.Add("cargo");
                         var editableList = string.Join(", ", parts.Take(parts.Count - 1)) + ", and " + parts.Last();
                         var partialWarning =
                             $"Hyperspace/Multiverse save loaded in partial mode. " +
@@ -555,10 +557,24 @@ public class SaveFileParser
                     if (weapons.Count > 20 || drones.Count > 20) continue;
 
                     // Everything after augments to EOF is the opaque tail.
+                    // Try to parse cargo from the start of the tail.
                     long endOfAugments = ms.Position;
                     int tailLength = fullData.Length - (int)endOfAugments;
                     var tailBytes = new byte[tailLength];
                     Array.Copy(fullData, (int)endOfAugments, tailBytes, 0, tailLength);
+
+                    List<string>? parsedCargoIds = null;
+                    var parsedCargo = TryParseCargoFromOpaqueTail(tailBytes);
+                    if (parsedCargo != null)
+                    {
+                        parsedCargoIds = parsedCargo.Value.CargoIds;
+                        tailBytes = parsedCargo.Value.PostCargoBytes;
+                        DebugLog($"  Cargo parsing succeeded: {parsedCargoIds.Count} items");
+                    }
+                    else
+                    {
+                        DebugLog($"  Cargo parsing failed — tail stays opaque");
+                    }
 
                     int preShipLength = (int)(candidatePos - searchStart);
                     var preShipBytes = new byte[preShipLength];
@@ -604,6 +620,8 @@ public class SaveFileParser
                         capabilities |= EditorCapability.Crew;
                     if (parsedSystems != null)
                         capabilities |= EditorCapability.Systems;
+                    if (parsedCargoIds != null)
+                        capabilities |= EditorCapability.Cargo;
 
                     var state = new SavedGameState
                     {
@@ -611,6 +629,7 @@ public class SaveFileParser
                         Capabilities = capabilities,
                         OpaquePrePlayerShipBytes = preShipBytes,
                         OpaqueTailBytes = tailBytes,
+                        CargoIdList = parsedCargoIds ?? new List<string>(),
                         FileFormat = header.FileFormat,
                         RandomNative = header.RandomNative,
                         DlcEnabled = header.DlcEnabled,
@@ -1378,6 +1397,55 @@ public class SaveFileParser
         {
             _reader = prevReader;
             ms.Dispose();
+        }
+    }
+
+    // ========================================================================
+    // Cargo parsing from opaque tail bytes (after augments)
+    // ========================================================================
+
+    private record struct ParsedCargo(List<string> CargoIds, byte[] PostCargoBytes);
+
+    private ParsedCargo? TryParseCargoFromOpaqueTail(byte[] tailBytes)
+    {
+        if (tailBytes.Length < 4) return null;
+
+        try
+        {
+            using var ms = new MemoryStream(tailBytes);
+            using var reader = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
+
+            int cargoCount = reader.ReadInt32();
+            if (cargoCount < 0 || cargoCount > 20) return null;
+
+            var cargoIds = new List<string>();
+            for (int i = 0; i < cargoCount; i++)
+            {
+                if (ms.Position + 4 > tailBytes.Length) return null;
+                int strLen = reader.ReadInt32();
+                if (strLen < 1 || strLen > 80) return null;
+                if (ms.Position + strLen > tailBytes.Length) return null;
+
+                byte[] bytes = reader.ReadBytes(strLen);
+                if (!IsAsciiIdentifier(bytes)) return null;
+
+                cargoIds.Add(Encoding.UTF8.GetString(bytes));
+            }
+
+            // Sanity check: after cargo, the next int32 should be the sector tree seed.
+            // Any int32 is a valid seed, but we need at least 20+ bytes remaining
+            // for the mandatory sector map fields (seeds, fleet offset, etc.).
+            int remaining = (int)(tailBytes.Length - ms.Position);
+            if (remaining < 20) return null;
+
+            var postCargoBytes = new byte[remaining];
+            Array.Copy(tailBytes, (int)ms.Position, postCargoBytes, 0, remaining);
+
+            return new ParsedCargo(cargoIds, postCargoBytes);
+        }
+        catch
+        {
+            return null;
         }
     }
 
