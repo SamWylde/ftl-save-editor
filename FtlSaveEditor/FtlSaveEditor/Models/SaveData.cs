@@ -202,6 +202,11 @@ public class CrewState
     /// The origRace string from the HS inline extension. Empty for vanilla saves.
     /// </summary>
     public string HsOriginalRace { get; set; } = "";
+    /// <summary>
+    /// Two trailing ints Hyperspace writes after unknownPhi for every crew member (replacing crystal lockdown).
+    /// </summary>
+    public int HsTrailingInt1 { get; set; }
+    public int HsTrailingInt2 { get; set; }
     public string Name { get; set; } = "";
     public string Race { get; set; } = "";
     public bool EnemyBoardingDrone { get; set; }

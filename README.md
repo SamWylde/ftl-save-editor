@@ -123,10 +123,11 @@ Hyperspace injects extension data **inline** within each crew member, between `u
 [vanilla fields: name, race, health, skills, ... universalDeathCount]
 [HS extension: sentinels(-1000,-1000) | powers | resources | origColorRace | origRace | customTele | boosts | 6 extras]
 [vanilla fields: 12 mastery bools | unknownNu | teleportAnim | unknownPhi]
+[HS trailing: 2 ints (always 0, replaces crystal lockdown fields for all races)]
 ```
 
 Key findings:
-- **Crystal lockdown** does not exist in HS format (handled by HS crew powers instead)
+- **Crystal lockdown** replaced by 2 trailing ints (always 0) written for every crew member regardless of race
 - **Power data is variable-length** — some powers contain embedded animation strings (92-155 bytes)
 - The **doubled race string** (origColorRace + origRace matching the crew's own race) is the reliable anchor for locating extension boundaries
 - Post-string gap is always 44 bytes (11 ints) across all crew

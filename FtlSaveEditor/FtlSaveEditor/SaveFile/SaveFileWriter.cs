@@ -622,7 +622,12 @@ public class SaveFileWriter
             if (crew.TeleportAnim != null) WriteAnimState(crew.TeleportAnim);
             WriteBool(crew.UnknownPhi);
         }
-        // NO crystal lockdown in HS/MV format (handled by HS crew powers)
+        // Hyperspace writes 2 trailing ints per crew (replacing crystal lockdown)
+        if (fmt >= 7)
+        {
+            WriteInt(crew.HsTrailingInt1);
+            WriteInt(crew.HsTrailingInt2);
+        }
     }
 
     // ========================================================================
