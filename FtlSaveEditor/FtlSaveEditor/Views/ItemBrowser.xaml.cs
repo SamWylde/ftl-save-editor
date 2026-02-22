@@ -212,8 +212,12 @@ public partial class ItemBrowser : UserControl
                 {
                     Text = tooltip,
                     TextWrapping = TextWrapping.Wrap,
-                    MaxWidth = 400
+                    MaxWidth = 400,
+                    Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush")
                 },
+                Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+                BorderBrush = (SolidColorBrush)FindResource("BorderBrush"),
+                Padding = new Thickness(8, 6, 8, 6),
                 Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
                 VerticalOffset = 2
             };

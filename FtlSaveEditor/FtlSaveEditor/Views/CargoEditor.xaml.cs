@@ -158,13 +158,13 @@ public partial class CargoEditor : UserControl
         if (_state.Blueprints.Weapons.TryGetValue(id, out var wp))
         {
             infoTb.Text = $"{wp.Title}  |  {wp.Type}  {wp.Damage}dmg x{wp.Shots}  {wp.Power}pwr  {wp.Cooldown}s  {wp.Cost}scrap";
-            infoTb.ToolTip = string.IsNullOrEmpty(wp.Description) ? null : wp.Description;
+            infoTb.ToolTip = CreateDarkTooltip(wp.Description);
             infoTb.Visibility = Visibility.Visible;
         }
         else if (_state.Blueprints.Drones.TryGetValue(id, out var dp))
         {
             infoTb.Text = $"{dp.Title}  |  {dp.Type}  {dp.Power}pwr  {dp.Cost}scrap";
-            infoTb.ToolTip = string.IsNullOrEmpty(dp.Description) ? null : dp.Description;
+            infoTb.ToolTip = CreateDarkTooltip(dp.Description);
             infoTb.Visibility = Visibility.Visible;
         }
         else if (_state.Blueprints.Augments.TryGetValue(id, out var ap))
@@ -173,7 +173,7 @@ public partial class CargoEditor : UserControl
             if (ap.Cost > 0) parts.Add($"{ap.Cost}scrap");
             if (ap.Stackable) parts.Add("stackable");
             infoTb.Text = string.Join("  |  ", parts);
-            infoTb.ToolTip = string.IsNullOrEmpty(ap.Description) ? null : ap.Description;
+            infoTb.ToolTip = CreateDarkTooltip(ap.Description);
             infoTb.Visibility = Visibility.Visible;
         }
         else
@@ -181,6 +181,24 @@ public partial class CargoEditor : UserControl
             infoTb.Text = "";
             infoTb.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private object? CreateDarkTooltip(string? description)
+    {
+        if (string.IsNullOrEmpty(description)) return null;
+        return new ToolTip
+        {
+            Content = new TextBlock
+            {
+                Text = description,
+                TextWrapping = TextWrapping.Wrap,
+                MaxWidth = 400,
+                Foreground = (SolidColorBrush)FindResource("TextPrimaryBrush")
+            },
+            Background = (SolidColorBrush)FindResource("BgDarkBrush"),
+            BorderBrush = (SolidColorBrush)FindResource("BorderBrush"),
+            Padding = new Thickness(8, 6, 8, 6)
+        };
     }
 
     private void AddCargo_Click(object sender, RoutedEventArgs e)
