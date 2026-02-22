@@ -205,7 +205,19 @@ public partial class ItemBrowser : UserControl
             Padding = new Thickness(12, 4, 12, 4)
         };
         if (!string.IsNullOrEmpty(tooltip))
-            border.ToolTip = tooltip;
+        {
+            border.ToolTip = new ToolTip
+            {
+                Content = new TextBlock
+                {
+                    Text = tooltip,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 400
+                },
+                Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+                VerticalOffset = 2
+            };
+        }
 
         var grid = new Grid();
         for (int c = 0; c < HeaderGrid.ColumnDefinitions.Count && c < values.Length; c++)
