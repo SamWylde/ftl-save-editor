@@ -16,12 +16,123 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, Func<UserControl>> _editors = new();
     private bool _stateEventsHooked;
 
+    // Trainer mode
+    private string _currentMode = "editor";
+    private string? _activeTrainerSection;
+    private readonly Dictionary<string, Func<UserControl>> _trainerViews = new();
+
     public MainWindow()
     {
         InitializeComponent();
         _state.LoadBlueprints();
         DetectSaveFiles();
+        BuildTrainerSidebar();
     }
+
+    // ======================== MODE SWITCHING ========================
+
+    private void EditorMode_Click(object sender, RoutedEventArgs e) => SwitchMode("editor");
+    private void TrainerMode_Click(object sender, RoutedEventArgs e) => SwitchMode("trainer");
+
+    private void SwitchMode(string mode)
+    {
+        _currentMode = mode;
+
+        bool isEditor = mode == "editor";
+
+        // Toggle sidebar visibility
+        EditorSidebarBorder.Visibility = isEditor ? Visibility.Visible : Visibility.Collapsed;
+        TrainerSidebarBorder.Visibility = isEditor ? Visibility.Collapsed : Visibility.Visible;
+
+        // Toggle content visibility
+        EditorContentScroller.Visibility = isEditor ? Visibility.Visible : Visibility.Collapsed;
+        TrainerContentScroller.Visibility = isEditor ? Visibility.Collapsed : Visibility.Visible;
+
+        // Toggle file buttons
+        OpenButton.IsEnabled = isEditor;
+        SaveButton.IsEnabled = isEditor && _state.HasFile;
+        SaveAsButton.IsEnabled = isEditor && _state.HasFile;
+
+        // Update mode toggle button styles
+        UpdateModeToggleStyles(isEditor);
+
+        // Navigate to first trainer section if entering trainer mode for the first time
+        if (!isEditor && _activeTrainerSection == null)
+        {
+            TrainerNavigateTo("connect");
+        }
+    }
+
+    private void UpdateModeToggleStyles(bool isEditor)
+    {
+        // Editor button
+        EditorModeBtn.Background = isEditor
+            ? (SolidColorBrush)FindResource("AccentBlueBrush")
+            : Brushes.Transparent;
+        EditorModeBtn.Foreground = isEditor
+            ? new SolidColorBrush(Color.FromRgb(0x0D, 0x11, 0x17))
+            : (SolidColorBrush)FindResource("TextSecondaryBrush");
+        EditorModeBtn.FontWeight = isEditor ? FontWeights.SemiBold : FontWeights.Normal;
+
+        // Trainer button
+        TrainerModeBtn.Background = isEditor
+            ? Brushes.Transparent
+            : (SolidColorBrush)FindResource("AccentBlueBrush");
+        TrainerModeBtn.Foreground = isEditor
+            ? (SolidColorBrush)FindResource("TextSecondaryBrush")
+            : new SolidColorBrush(Color.FromRgb(0x0D, 0x11, 0x17));
+        TrainerModeBtn.FontWeight = isEditor ? FontWeights.Normal : FontWeights.SemiBold;
+    }
+
+    // ======================== TRAINER SIDEBAR ========================
+
+    private void BuildTrainerSidebar()
+    {
+        TrainerSidebarPanel.Children.Clear();
+        _trainerViews.Clear();
+
+        var sections = new (string Key, string Label, Func<UserControl> Factory)[]
+        {
+            ("connect", "Connect", () => new TrainerConnectView()),
+            ("resources", "Resources", () => new TrainerView()),
+            ("gamedata", "Game Data", () => new GameDataBrowser()),
+            ("help", "Help / Info", () => new HelpView()),
+        };
+
+        foreach (var (key, label, factory) in sections)
+        {
+            _trainerViews[key] = factory;
+
+            var btn = new Button
+            {
+                Content = label,
+                Tag = key,
+                Style = (Style)FindResource("SidebarButton")
+            };
+            btn.Click += (_, _) => TrainerNavigateTo(key);
+            TrainerSidebarPanel.Children.Add(btn);
+        }
+    }
+
+    private void TrainerNavigateTo(string section)
+    {
+        _activeTrainerSection = section;
+
+        foreach (var child in TrainerSidebarPanel.Children)
+        {
+            if (child is not Button btn) continue;
+            btn.Style = (Style)FindResource(
+                (string)btn.Tag == section ? "SidebarButtonActive" : "SidebarButton");
+        }
+
+        TrainerContentPanel.Children.Clear();
+        if (_trainerViews.TryGetValue(section, out var factory))
+        {
+            TrainerContentPanel.Children.Add(factory());
+        }
+    }
+
+    // ======================== EDITOR MODE (existing logic) ========================
 
     private void DetectSaveFiles()
     {
@@ -136,6 +247,9 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        // Switch to editor mode when a file is loaded
+        SwitchMode("editor");
 
         WelcomePanel.Visibility = Visibility.Collapsed;
         EditorPanel.Visibility = Visibility.Visible;
@@ -273,8 +387,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        // Partial mode for HS/MV saves is expected — the banner is sufficient.
-        // Only show a popup for unexpected modes (restricted fallback).
         if (gs.ParseMode == SaveParseMode.RestrictedOpaqueTail)
         {
             var primaryWarning = gs.ParseWarnings[0];
@@ -306,6 +418,8 @@ public partial class MainWindow : Window
             EditorPanel.Children.Add(factory());
         }
     }
+
+    // ======================== FILE OPERATIONS ========================
 
     private void SaveFile_Click(object sender, RoutedEventArgs e)
     {
@@ -359,6 +473,9 @@ public partial class MainWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
+        // Detach trainer on close
+        TrainerService.Instance.Detach();
+
         if (_state.IsDirty)
         {
             var result = MessageBox.Show(

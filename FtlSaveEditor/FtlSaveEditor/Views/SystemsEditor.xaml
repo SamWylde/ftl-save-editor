@@ -43,5 +43,8 @@
 
         <!-- System rows -->
         <StackPanel x:Name="SystemsListPanel"/>
+
+        <!-- System sub-state sections (Clonebay, Battery, Shields, Cloaking) -->
+        <StackPanel x:Name="SystemExtrasPanel" Margin="0,16,0,0"/>
     </StackPanel>
 </UserControl>

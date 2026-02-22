@@ -258,12 +258,24 @@ public partial class CrewEditor : UserControl
 
         // Skill rows
         int sRow = 1;
-        AddSkillRow(skillGrid, sRow++, "Pilot", crew.PilotSkill, v => crew.PilotSkill = v);
-        AddSkillRow(skillGrid, sRow++, "Engine", crew.EngineSkill, v => crew.EngineSkill = v);
-        AddSkillRow(skillGrid, sRow++, "Shield", crew.ShieldSkill, v => crew.ShieldSkill = v);
-        AddSkillRow(skillGrid, sRow++, "Weapon", crew.WeaponSkill, v => crew.WeaponSkill = v);
-        AddSkillRow(skillGrid, sRow++, "Repair", crew.RepairSkill, v => crew.RepairSkill = v);
-        AddSkillRow(skillGrid, sRow++, "Combat", crew.CombatSkill, v => crew.CombatSkill = v);
+        AddSkillRow(skillGrid, sRow++, "Pilot", crew.PilotSkill, v => crew.PilotSkill = v,
+            crew.PilotMasteryOne, v => crew.PilotMasteryOne = v,
+            crew.PilotMasteryTwo, v => crew.PilotMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Engine", crew.EngineSkill, v => crew.EngineSkill = v,
+            crew.EngineMasteryOne, v => crew.EngineMasteryOne = v,
+            crew.EngineMasteryTwo, v => crew.EngineMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Shield", crew.ShieldSkill, v => crew.ShieldSkill = v,
+            crew.ShieldMasteryOne, v => crew.ShieldMasteryOne = v,
+            crew.ShieldMasteryTwo, v => crew.ShieldMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Weapon", crew.WeaponSkill, v => crew.WeaponSkill = v,
+            crew.WeaponMasteryOne, v => crew.WeaponMasteryOne = v,
+            crew.WeaponMasteryTwo, v => crew.WeaponMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Repair", crew.RepairSkill, v => crew.RepairSkill = v,
+            crew.RepairMasteryOne, v => crew.RepairMasteryOne = v,
+            crew.RepairMasteryTwo, v => crew.RepairMasteryTwo = v);
+        AddSkillRow(skillGrid, sRow++, "Combat", crew.CombatSkill, v => crew.CombatSkill = v,
+            crew.CombatMasteryOne, v => crew.CombatMasteryOne = v,
+            crew.CombatMasteryTwo, v => crew.CombatMasteryTwo = v);
 
         content.Children.Add(skillGrid);
         content.Children.Add(CreateSeparator());
@@ -639,7 +651,7 @@ public partial class CrewEditor : UserControl
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var headers = new[] { ("Skill", 0), ("Level", 1) };
+        var headers = new[] { ("Skill", 0), ("Level", 1), ("M1", 3), ("M2", 4) };
         foreach (var (text, col) in headers)
         {
             var tb = new TextBlock
@@ -657,7 +669,9 @@ public partial class CrewEditor : UserControl
     }
 
     private void AddSkillRow(Grid grid, int row, string name,
-        int skillValue, Action<int> skillSetter)
+        int skillValue, Action<int> skillSetter,
+        bool masteryOne, Action<bool> masteryOneSetter,
+        bool masteryTwo, Action<bool> masteryTwoSetter)
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -690,5 +704,29 @@ public partial class CrewEditor : UserControl
         Grid.SetRow(box, row);
         Grid.SetColumn(box, 1);
         grid.Children.Add(box);
+
+        var m1Chk = new CheckBox
+        {
+            IsChecked = masteryOne,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        m1Chk.Checked += (_, _) => { masteryOneSetter(true); _state.MarkDirty(); };
+        m1Chk.Unchecked += (_, _) => { masteryOneSetter(false); _state.MarkDirty(); };
+        Grid.SetRow(m1Chk, row);
+        Grid.SetColumn(m1Chk, 3);
+        grid.Children.Add(m1Chk);
+
+        var m2Chk = new CheckBox
+        {
+            IsChecked = masteryTwo,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        m2Chk.Checked += (_, _) => { masteryTwoSetter(true); _state.MarkDirty(); };
+        m2Chk.Unchecked += (_, _) => { masteryTwoSetter(false); _state.MarkDirty(); };
+        Grid.SetRow(m2Chk, row);
+        Grid.SetColumn(m2Chk, 4);
+        grid.Children.Add(m2Chk);
     }
 }

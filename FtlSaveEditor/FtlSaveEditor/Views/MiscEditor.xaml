@@ -29,49 +29,32 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Label Content="Difficulty" Grid.Row="0" Grid.Column="0"
+                    <Label Content="Autofire" Grid.Row="0" Grid.Column="0"
                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <ComboBox x:Name="DifficultyCombo" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"
-                              Background="{StaticResource BgDarkBrush}"
-                              Foreground="{StaticResource TextPrimaryBrush}"/>
-
-                    <Label Content="DLC Enabled" Grid.Row="1" Grid.Column="0"
-                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="DlcEnabledCheck" Grid.Row="1" Grid.Column="1"
+                    <CheckBox x:Name="AutofireCheck" Grid.Row="0" Grid.Column="1"
                               VerticalAlignment="Center" Margin="0,0,0,8"/>
 
-                    <Label Content="Autofire" Grid.Row="2" Grid.Column="0"
+                    <Label Content="File Format" Grid.Row="1" Grid.Column="0"
                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="AutofireCheck" Grid.Row="2" Grid.Column="1"
-                              VerticalAlignment="Center" Margin="0,0,0,8"/>
+                    <TextBox x:Name="FileFormatBox" Grid.Row="1" Grid.Column="1" Width="80"
+                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
 
-                    <Label Content="File Format" Grid.Row="3" Grid.Column="0"
+                    <Label Content="Hidden Crystal" Grid.Row="2" Grid.Column="0"
                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <TextBox x:Name="FileFormatBox" Grid.Row="3" Grid.Column="1" Width="80"
-                             HorizontalAlignment="Left" Margin="0,0,0,0"/>
+                    <CheckBox x:Name="CrystalWorldsCheck" Grid.Row="2" Grid.Column="1"
+                              VerticalAlignment="Center"/>
 
                     <Label Content="Sector Number" Grid.Row="0" Grid.Column="3"
                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                     <TextBox x:Name="SectorNumberBox" Grid.Row="0" Grid.Column="4" Width="80"
                              HorizontalAlignment="Left" Margin="0,0,0,8"/>
 
-                    <Label Content="Sector (1-based)" Grid.Row="1" Grid.Column="3"
+                    <Label Content="Current Beacon" Grid.Row="1" Grid.Column="3"
                            Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <TextBox x:Name="OneBasedSectorBox" Grid.Row="1" Grid.Column="4" Width="80"
+                    <TextBox x:Name="CurrentBeaconBox" Grid.Row="1" Grid.Column="4" Width="80"
                              HorizontalAlignment="Left" Margin="0,0,0,8"/>
-
-                    <Label Content="Current Beacon" Grid.Row="2" Grid.Column="3"
-                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <TextBox x:Name="CurrentBeaconBox" Grid.Row="2" Grid.Column="4" Width="80"
-                             HorizontalAlignment="Left" Margin="0,0,0,8"/>
-
-                    <Label Content="Hidden Crystal" Grid.Row="3" Grid.Column="3"
-                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                    <CheckBox x:Name="CrystalWorldsCheck" Grid.Row="3" Grid.Column="4"
-                              VerticalAlignment="Center"/>
                 </Grid>
             </StackPanel>
         </Border>
@@ -105,6 +88,16 @@
                     <TextBox x:Name="LayoutSeedBox" Grid.Row="0" Grid.Column="4" Width="120"
                              HorizontalAlignment="Left"/>
                 </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Sector State Section -->
+        <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="SECTOR STATE" FontSize="11" FontWeight="Bold"
+                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,12"/>
+                <StackPanel x:Name="SectorStatePanel"/>
             </StackPanel>
         </Border>
 
@@ -224,16 +217,29 @@
             </Expander>
         </Border>
 
-        <!-- Game Stats Section -->
+        <!-- Quest Events Section -->
         <Border Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12">
             <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
                       Background="Transparent" BorderThickness="0">
                 <Expander.Header>
-                    <TextBlock Text="GAME STATS" FontSize="11" FontWeight="Bold"
-                               Foreground="{StaticResource AccentGreenBrush}"/>
+                    <TextBlock Text="QUEST EVENTS" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentOrangeBrush}"/>
                 </Expander.Header>
-                <StackPanel x:Name="StatsPanel" Margin="0,12,0,0"/>
+                <StackPanel x:Name="QuestEventsPanel" Margin="0,12,0,0"/>
+            </Expander>
+        </Border>
+
+        <!-- Format 2+ Fields Section -->
+        <Border x:Name="F2FieldsBorder" Background="{StaticResource BgMediumBrush}" BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1" CornerRadius="6" Padding="16" Margin="0,0,0,12" Visibility="Collapsed">
+            <Expander IsExpanded="False" Foreground="{StaticResource TextPrimaryBrush}"
+                      Background="Transparent" BorderThickness="0">
+                <Expander.Header>
+                    <TextBlock Text="FORMAT 2+ FIELDS" FontSize="11" FontWeight="Bold"
+                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                </Expander.Header>
+                <StackPanel x:Name="F2FieldsPanel" Margin="0,12,0,0"/>
             </Expander>
         </Border>
     </StackPanel>

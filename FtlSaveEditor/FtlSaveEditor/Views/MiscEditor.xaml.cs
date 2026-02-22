@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -24,27 +25,21 @@ public partial class MiscEditor : UserControl
         var gs = _state.GameState;
         if (gs == null) return;
 
-        // Difficulty
-        DifficultyCombo.Items.Clear();
-        DifficultyCombo.Items.Add("Easy");
-        DifficultyCombo.Items.Add("Normal");
-        DifficultyCombo.Items.Add("Hard");
-        DifficultyCombo.SelectedIndex = gs.Difficulty >= 0 && gs.Difficulty <= 2 ? gs.Difficulty : 0;
-
         // Basic settings
-        DlcEnabledCheck.IsChecked = gs.DlcEnabled;
         AutofireCheck.IsChecked = gs.Autofire;
         FileFormatBox.Text = gs.FileFormat.ToString();
 
         // Sector
         SectorNumberBox.Text = gs.SectorNumber.ToString();
-        OneBasedSectorBox.Text = gs.OneBasedSectorNumber.ToString();
         CurrentBeaconBox.Text = gs.CurrentBeaconId.ToString();
         CrystalWorldsCheck.IsChecked = gs.SectorIsHiddenCrystalWorlds;
 
         // Seeds
         TreeSeedBox.Text = gs.SectorTreeSeed.ToString();
         LayoutSeedBox.Text = gs.SectorLayoutSeed.ToString();
+
+        // Sector state
+        BuildSectorStateSection();
 
         // Rebel fleet
         FleetOffsetBox.Text = gs.RebelFleetOffset.ToString();
@@ -65,22 +60,15 @@ public partial class MiscEditor : UserControl
         // Flagship
         BuildFlagshipSection();
 
-        // Stats
-        BuildStatsSection();
+        // Quest events
+        BuildQuestEventsSection();
+
+        // Format 2+ fields
+        BuildFormat2FieldsSection();
     }
 
     private void WireEvents()
     {
-        DifficultyCombo.SelectionChanged += (_, _) =>
-        {
-            if (_loading) return;
-            _state.GameState!.Difficulty = DifficultyCombo.SelectedIndex;
-            _state.MarkDirty();
-        };
-
-        DlcEnabledCheck.Checked += (_, _) => SetBool(v => _state.GameState!.DlcEnabled = v, true);
-        DlcEnabledCheck.Unchecked += (_, _) => SetBool(v => _state.GameState!.DlcEnabled = v, false);
-
         AutofireCheck.Checked += (_, _) => SetBool(v => _state.GameState!.Autofire = v, true);
         AutofireCheck.Unchecked += (_, _) => SetBool(v => _state.GameState!.Autofire = v, false);
 
@@ -98,7 +86,6 @@ public partial class MiscEditor : UserControl
 
         FileFormatBox.LostFocus += (_, _) => SetInt(FileFormatBox, v => _state.GameState!.FileFormat = v);
         SectorNumberBox.LostFocus += (_, _) => SetInt(SectorNumberBox, v => _state.GameState!.SectorNumber = v);
-        OneBasedSectorBox.LostFocus += (_, _) => SetInt(OneBasedSectorBox, v => _state.GameState!.OneBasedSectorNumber = v);
         CurrentBeaconBox.LostFocus += (_, _) => SetInt(CurrentBeaconBox, v => _state.GameState!.CurrentBeaconId = v);
         TreeSeedBox.LostFocus += (_, _) => SetInt(TreeSeedBox, v => _state.GameState!.SectorTreeSeed = v);
         LayoutSeedBox.LostFocus += (_, _) => SetInt(LayoutSeedBox, v => _state.GameState!.SectorLayoutSeed = v);
@@ -107,6 +94,66 @@ public partial class MiscEditor : UserControl
         PursuitModBox.LostFocus += (_, _) => SetInt(PursuitModBox, v => _state.GameState!.RebelPursuitMod = v);
         FlagshipHopBox.LostFocus += (_, _) => SetInt(FlagshipHopBox, v => _state.GameState!.RebelFlagshipHop = v);
         FlagshipBaseTurnsBox.LostFocus += (_, _) => SetInt(FlagshipBaseTurnsBox, v => _state.GameState!.RebelFlagshipBaseTurns = v);
+    }
+
+    private void BuildSectorStateSection()
+    {
+        SectorStatePanel.Children.Clear();
+        var gs = _state.GameState;
+        if (gs == null) return;
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
+
+        int row = 0;
+        AddCheckFieldToGrid(grid, ref row, 0, "Waiting", gs.Waiting, v => gs.Waiting = v);
+        AddIntFieldToGrid(grid, ref row, 0, "Wait Event Seed", gs.WaitEventSeed, v => gs.WaitEventSeed = v);
+        AddCheckFieldToGrid(grid, ref row, 0, "Hazards Visible", gs.SectorHazardsVisible, v => gs.SectorHazardsVisible = v);
+
+        SectorStatePanel.Children.Add(grid);
+
+        // Sector visitation
+        if (gs.SectorVisitation.Count > 0)
+        {
+            SectorStatePanel.Children.Add(new TextBlock
+            {
+                Text = "Sector Visitation",
+                Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                Margin = new Thickness(0, 12, 0, 4),
+                FontSize = 12
+            });
+
+            var visitedIndices = gs.SectorVisitation
+                .Select((visited, idx) => new { visited, idx })
+                .Where(x => x.visited)
+                .Select(x => x.idx.ToString());
+
+            var visitBox = new TextBox
+            {
+                Text = string.Join(", ", visitedIndices),
+                ToolTip = "Comma-separated sector indices that have been visited (e.g. 0, 1, 3)",
+                Width = 400,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            visitBox.LostFocus += (_, _) =>
+            {
+                var parts = visitBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var indices = new System.Collections.Generic.HashSet<int>();
+                foreach (var p in parts)
+                {
+                    if (int.TryParse(p, out int idx) && idx >= 0 && idx < gs.SectorVisitation.Count)
+                        indices.Add(idx);
+                }
+                for (int i = 0; i < gs.SectorVisitation.Count; i++)
+                    gs.SectorVisitation[i] = indices.Contains(i);
+                _state.MarkDirty();
+            };
+            SectorStatePanel.Children.Add(visitBox);
+        }
     }
 
     private void BuildEnvironmentSection()
@@ -312,28 +359,266 @@ public partial class MiscEditor : UserControl
         }
     }
 
-    private void BuildStatsSection()
+    private void BuildQuestEventsSection()
     {
-        StatsPanel.Children.Clear();
+        QuestEventsPanel.Children.Clear();
         var gs = _state.GameState;
         if (gs == null) return;
 
+        // Quest event map
+        if (gs.QuestEventMap.Count > 0)
+        {
+            QuestEventsPanel.Children.Add(new TextBlock
+            {
+                Text = "Quest Event Map",
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = (SolidColorBrush)FindResource("AccentOrangeBrush"),
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+
+            for (int i = 0; i < gs.QuestEventMap.Count; i++)
+            {
+                var qe = gs.QuestEventMap[i];
+                int capturedI = i;
+
+                var rowGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(30) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
+
+                var idxTb = new TextBlock
+                {
+                    Text = i.ToString(),
+                    Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(idxTb, 0);
+                rowGrid.Children.Add(idxTb);
+
+                var eventIdBox = new TextBox
+                {
+                    Text = qe.QuestEventId,
+                    Margin = new Thickness(0, 0, 8, 0)
+                };
+                eventIdBox.TextChanged += (_, _) =>
+                {
+                    qe.QuestEventId = eventIdBox.Text;
+                    _state.MarkDirty();
+                };
+                Grid.SetColumn(eventIdBox, 1);
+                rowGrid.Children.Add(eventIdBox);
+
+                var beaconLbl = new TextBlock
+                {
+                    Text = "Beacon:",
+                    Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0)
+                };
+                Grid.SetColumn(beaconLbl, 2);
+                rowGrid.Children.Add(beaconLbl);
+
+                var beaconBox = new TextBox
+                {
+                    Text = qe.QuestBeaconId.ToString(),
+                    Width = 60,
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                beaconBox.LostFocus += (_, _) =>
+                {
+                    if (int.TryParse(beaconBox.Text, out int v))
+                    {
+                        qe.QuestBeaconId = v;
+                        _state.MarkDirty();
+                    }
+                };
+                Grid.SetColumn(beaconBox, 3);
+                rowGrid.Children.Add(beaconBox);
+
+                var removeBtn = new Button
+                {
+                    Content = "X",
+                    Style = (Style)FindResource("DarkButton"),
+                    Foreground = (SolidColorBrush)FindResource("AccentRedBrush"),
+                    Width = 26,
+                    Height = 24,
+                    Padding = new Thickness(0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                removeBtn.Click += (_, _) =>
+                {
+                    if (capturedI < gs.QuestEventMap.Count)
+                    {
+                        gs.QuestEventMap.RemoveAt(capturedI);
+                        _state.MarkDirty();
+                        BuildQuestEventsSection();
+                    }
+                };
+                Grid.SetColumn(removeBtn, 4);
+                rowGrid.Children.Add(removeBtn);
+
+                QuestEventsPanel.Children.Add(rowGrid);
+            }
+        }
+        else
+        {
+            QuestEventsPanel.Children.Add(new TextBlock
+            {
+                Text = "No quest events",
+                Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                FontStyle = FontStyles.Italic,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+        }
+
+        var addQuestBtn = new Button
+        {
+            Content = "+ Add Quest Event",
+            Style = (Style)FindResource("DarkButton"),
+            Foreground = (SolidColorBrush)FindResource("AccentGreenBrush"),
+            Padding = new Thickness(12, 4, 12, 4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 4, 0, 16)
+        };
+        addQuestBtn.Click += (_, _) =>
+        {
+            gs.QuestEventMap.Add(new QuestEvent { QuestEventId = "QUEST_EVENT", QuestBeaconId = 0 });
+            _state.MarkDirty();
+            BuildQuestEventsSection();
+        };
+        QuestEventsPanel.Children.Add(addQuestBtn);
+
+        // Distant quest event list
+        QuestEventsPanel.Children.Add(new TextBlock
+        {
+            Text = "Distant Quest Events",
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (SolidColorBrush)FindResource("AccentOrangeBrush"),
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+
+        if (gs.DistantQuestEventList.Count > 0)
+        {
+            for (int i = 0; i < gs.DistantQuestEventList.Count; i++)
+            {
+                int capturedI = i;
+                var rowPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Margin = new Thickness(0, 0, 0, 4)
+                };
+
+                var idxTb = new TextBlock
+                {
+                    Text = i.ToString(),
+                    Width = 30,
+                    Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                rowPanel.Children.Add(idxTb);
+
+                var eventBox = new TextBox
+                {
+                    Text = gs.DistantQuestEventList[i],
+                    Width = 300
+                };
+                eventBox.TextChanged += (_, _) =>
+                {
+                    if (capturedI < gs.DistantQuestEventList.Count)
+                    {
+                        gs.DistantQuestEventList[capturedI] = eventBox.Text;
+                        _state.MarkDirty();
+                    }
+                };
+                rowPanel.Children.Add(eventBox);
+
+                var removeBtn = new Button
+                {
+                    Content = "X",
+                    Style = (Style)FindResource("DarkButton"),
+                    Foreground = (SolidColorBrush)FindResource("AccentRedBrush"),
+                    Width = 26,
+                    Height = 24,
+                    Padding = new Thickness(0),
+                    Margin = new Thickness(8, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                removeBtn.Click += (_, _) =>
+                {
+                    if (capturedI < gs.DistantQuestEventList.Count)
+                    {
+                        gs.DistantQuestEventList.RemoveAt(capturedI);
+                        _state.MarkDirty();
+                        BuildQuestEventsSection();
+                    }
+                };
+                rowPanel.Children.Add(removeBtn);
+
+                QuestEventsPanel.Children.Add(rowPanel);
+            }
+        }
+        else
+        {
+            QuestEventsPanel.Children.Add(new TextBlock
+            {
+                Text = "No distant quest events",
+                Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                FontStyle = FontStyles.Italic,
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+        }
+
+        var addDistantBtn = new Button
+        {
+            Content = "+ Add Distant Quest Event",
+            Style = (Style)FindResource("DarkButton"),
+            Foreground = (SolidColorBrush)FindResource("AccentGreenBrush"),
+            Padding = new Thickness(12, 4, 12, 4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 4, 0, 0)
+        };
+        addDistantBtn.Click += (_, _) =>
+        {
+            gs.DistantQuestEventList.Add("DISTANT_QUEST_EVENT");
+            _state.MarkDirty();
+            BuildQuestEventsSection();
+        };
+        QuestEventsPanel.Children.Add(addDistantBtn);
+    }
+
+    private void BuildFormat2FieldsSection()
+    {
+        F2FieldsPanel.Children.Clear();
+        var gs = _state.GameState;
+        if (gs == null || gs.FileFormat < 7)
+        {
+            F2FieldsBorder.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        F2FieldsBorder.Visibility = Visibility.Visible;
+
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(40) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(200) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(160) });
 
         int row = 0;
-        AddIntFieldToGrid(grid, ref row, 0, "Total Ships Defeated", gs.TotalShipsDefeated, v => gs.TotalShipsDefeated = v);
-        AddIntFieldToGrid(grid, ref row, 0, "Total Beacons Explored", gs.TotalBeaconsExplored, v => gs.TotalBeaconsExplored = v);
-        AddIntFieldToGrid(grid, ref row, 0, "Total Scrap Collected", gs.TotalScrapCollected, v => gs.TotalScrapCollected = v);
+        AddCheckFieldToGrid(grid, ref row, 0, "F2 Hazards Visible", gs.F2SectorHazardsVisible, v => gs.F2SectorHazardsVisible = v);
+        AddCheckFieldToGrid(grid, ref row, 0, "F2 Flagship Visible", gs.F2RebelFlagshipVisible, v => gs.F2RebelFlagshipVisible = v);
+        AddIntFieldToGrid(grid, ref row, 0, "F2 Flagship Hop", gs.F2RebelFlagshipHop, v => gs.F2RebelFlagshipHop = v);
 
         row = 0;
-        AddIntFieldToGrid(grid, ref row, 3, "Total Crew Hired", gs.TotalCrewHired, v => gs.TotalCrewHired = v);
+        AddCheckFieldToGrid(grid, ref row, 3, "F2 Flagship Moving", gs.F2RebelFlagshipMoving, v => gs.F2RebelFlagshipMoving = v);
+        AddIntFieldToGrid(grid, ref row, 3, "F2 Current Beacon", gs.F2CurrentBeaconId, v => gs.F2CurrentBeaconId = v);
 
-        StatsPanel.Children.Add(grid);
+        F2FieldsPanel.Children.Add(grid);
     }
 
     private void SetBool(Action<bool> setter, bool value)

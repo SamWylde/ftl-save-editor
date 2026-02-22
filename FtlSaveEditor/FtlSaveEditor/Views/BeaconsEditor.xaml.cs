@@ -1,6 +1,9 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
+using FtlSaveEditor.Data;
 using FtlSaveEditor.Models;
 using FtlSaveEditor.Services;
 
@@ -222,17 +225,6 @@ public partial class BeaconsEditor : UserControl
 
                     if (item.ItemId != null)
                     {
-                        var idBox = new TextBox
-                        {
-                            Text = item.ItemId,
-                            Width = 200,
-                            Margin = new Thickness(0, 0, 8, 0)
-                        };
-                        idBox.TextChanged += (_, _) =>
-                        {
-                            capturedItem.ItemId = idBox.Text;
-                            _state.MarkDirty();
-                        };
                         itemPanel.Children.Add(new TextBlock
                         {
                             Text = "ID:",
@@ -240,7 +232,37 @@ public partial class BeaconsEditor : UserControl
                             Margin = new Thickness(0, 0, 4, 0),
                             VerticalAlignment = VerticalAlignment.Center
                         });
-                        itemPanel.Children.Add(idBox);
+
+                        var idPanel = new StackPanel();
+                        var cvs = new CollectionViewSource { Source = GetStoreItemSuggestions() };
+                        var idBox = new ComboBox
+                        {
+                            IsEditable = true,
+                            Text = item.ItemId,
+                            ItemsSource = cvs.View,
+                            Width = 240,
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        var infoTb = new TextBlock
+                        {
+                            FontSize = 11,
+                            Foreground = (SolidColorBrush)FindResource("TextSecondaryBrush"),
+                            Margin = new Thickness(2, 2, 0, 0),
+                            TextWrapping = TextWrapping.Wrap
+                        };
+                        UpdateStoreItemInfo(item.ItemId, infoTb);
+                        idBox.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+                            new RoutedEventHandler((_, _) =>
+                            {
+                                capturedItem.ItemId = idBox.Text;
+                                _state.MarkDirty();
+                                UpdateStoreItemInfo(idBox.Text, infoTb);
+                                var text = idBox.Text;
+                                cvs.View.Filter = f => ((string)f).Contains(text, StringComparison.OrdinalIgnoreCase);
+                            }));
+                        idPanel.Children.Add(idBox);
+                        idPanel.Children.Add(infoTb);
+                        itemPanel.Children.Add(idPanel);
                     }
 
                     content.Children.Add(itemPanel);
@@ -340,6 +362,46 @@ public partial class BeaconsEditor : UserControl
         grid.Children.Add(box);
 
         row++;
+    }
+
+    private string[] GetStoreItemSuggestions()
+    {
+        var modWeapons = _state.Blueprints.Weapons.Keys;
+        var modDrones = _state.Blueprints.Drones.Keys;
+        var modAugments = _state.Blueprints.Augments.Keys;
+        return ItemIds.Weapons.Concat(ItemIds.Drones).Concat(ItemIds.Augments)
+            .Concat(modWeapons).Concat(modDrones).Concat(modAugments)
+            .Distinct().OrderBy(id => id).ToArray();
+    }
+
+    private void UpdateStoreItemInfo(string id, TextBlock infoTb)
+    {
+        if (_state.Blueprints.Weapons.TryGetValue(id, out var wp))
+        {
+            infoTb.Text = $"{wp.Title}  |  {wp.Type}  {wp.Damage}dmg x{wp.Shots}  {wp.Power}pwr  {wp.Cooldown}s  {wp.Cost}scrap";
+            infoTb.ToolTip = string.IsNullOrEmpty(wp.Description) ? null : wp.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else if (_state.Blueprints.Drones.TryGetValue(id, out var dp))
+        {
+            infoTb.Text = $"{dp.Title}  |  {dp.Type}  {dp.Power}pwr  {dp.Cost}scrap";
+            infoTb.ToolTip = string.IsNullOrEmpty(dp.Description) ? null : dp.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else if (_state.Blueprints.Augments.TryGetValue(id, out var ap))
+        {
+            var parts = new System.Collections.Generic.List<string> { ap.Title };
+            if (ap.Cost > 0) parts.Add($"{ap.Cost}scrap");
+            if (ap.Stackable) parts.Add("stackable");
+            infoTb.Text = string.Join("  |  ", parts);
+            infoTb.ToolTip = string.IsNullOrEmpty(ap.Description) ? null : ap.Description;
+            infoTb.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            infoTb.Text = "";
+            infoTb.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void AddCheckField(Grid grid, ref int row, int colOffset, string label, bool value, Action<bool> setter)

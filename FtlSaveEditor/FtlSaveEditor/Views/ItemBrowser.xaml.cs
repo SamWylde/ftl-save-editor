@@ -229,6 +229,24 @@ public partial class ItemBrowser : UserControl
             grid.Children.Add(tb);
         }
 
+        // Click to copy ID, right-click context menu
+        border.Cursor = Cursors.Hand;
+        border.MouseLeftButtonUp += (_, _) =>
+        {
+            Clipboard.SetText(values[0]);
+            StatusText.Text = $"Copied: {values[0]}";
+        };
+
+        var menu = new ContextMenu();
+        var copyItem = new MenuItem { Header = $"Copy ID: {values[0]}" };
+        copyItem.Click += (_, _) =>
+        {
+            Clipboard.SetText(values[0]);
+            StatusText.Text = $"Copied: {values[0]}";
+        };
+        menu.Items.Add(copyItem);
+        border.ContextMenu = menu;
+
         border.Child = grid;
         return border;
     }

@@ -126,7 +126,7 @@ public static class ModBlueprintScanner
         @"<crewBlueprint\s+name=""([^""]+)""",
         RegexOptions.Compiled);
 
-    private static void ParseBlueprints(string content, ModBlueprints result)
+    public static void ParseBlueprints(string content, ModBlueprints result)
     {
         foreach (Match m in WeaponRx.Matches(content))
         {
