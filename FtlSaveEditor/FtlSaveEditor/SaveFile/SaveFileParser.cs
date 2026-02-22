@@ -513,55 +513,76 @@ public class SaveFileParser
                     if (fuelAmt < 0) continue;
                     if (scrapAmt < 0) continue;
 
-                    // Phase 2: Skip crew/systems/rooms (contains HS extension data).
-                    // Record position after resources; use FindWeaponSection to jump ahead.
+                    // Phase 2: Parse crew and systems FIRST to narrow weapon search.
+                    // This avoids false positives from store/beacon data in the interior.
                     long interiorStart = ms.Position;
-                    long weaponSectionPos = FindWeaponSection(interiorStart, fmt, requireCargoValidation: false);
-                    DebugLog($"  Weapon section at {weaponSectionPos} (interior gap: {weaponSectionPos - interiorStart} bytes)");
+                    int remainingLen = fullData.Length - (int)interiorStart;
 
-                    int interiorLength = (int)(weaponSectionPos - interiorStart);
-                    var opaqueInterior = new byte[interiorLength];
-                    Array.Copy(fullData, (int)interiorStart, opaqueInterior, 0, interiorLength);
-
-                    // Phase 2.5: Try to parse crew from the opaque interior.
-                    // If successful, we get editable crew + opaque post-crew bytes.
-                    // If not, the entire interior stays opaque (no crew editing).
+                    // Parse crew from a broad buffer (entire remaining file).
+                    // Crew is self-delimited so doesn't need the weapon section boundary.
                     List<CrewState>? parsedCrew = null;
                     byte[]? postCrewBytes = null;
+                    ParsedSystems? parsedSystems = null;
+                    long weaponSearchStart = interiorStart; // narrowed as we parse more
+
+                    var broadInterior = new byte[remainingLen];
+                    Array.Copy(fullData, (int)interiorStart, broadInterior, 0, remainingLen);
+
                     try
                     {
-                        var crewResult = TryParseCrewFromOpaqueInterior(opaqueInterior, fmt);
+                        var crewResult = TryParseCrewFromOpaqueInterior(broadInterior, fmt);
                         if (crewResult != null)
                         {
                             parsedCrew = crewResult.Value.Crew;
                             postCrewBytes = crewResult.Value.PostCrewBytes;
-                            DebugLog($"  Crew parsing succeeded: {parsedCrew.Count} crew members");
+                            long crewConsumed = broadInterior.Length - postCrewBytes.Length;
+                            weaponSearchStart = interiorStart + crewConsumed;
+                            DebugLog($"  Crew parsing succeeded: {parsedCrew.Count} crew members, narrowing weapon search to offset {weaponSearchStart}");
+
+                            // Parse systems to narrow further
+                            try
+                            {
+                                parsedSystems = TryParseSystemsFromPostCrewBytes(postCrewBytes, fmt);
+                                if (parsedSystems != null)
+                                {
+                                    long systemsConsumed = postCrewBytes.Length - parsedSystems.Value.PostSystemsBytes.Length;
+                                    weaponSearchStart = interiorStart + crewConsumed + systemsConsumed;
+                                    DebugLog($"  Systems parsed: {parsedSystems.Value.Systems.Count} systems, weapon search from offset {weaponSearchStart}");
+                                }
+                                else
+                                {
+                                    DebugLog($"  System parsing returned null — keeping post-crew bytes opaque");
+                                }
+                            }
+                            catch (Exception sysEx)
+                            {
+                                DebugLog($"  System parsing threw: {sysEx.Message} — keeping post-crew bytes opaque");
+                            }
                         }
                         else
                         {
-                            DebugLog($"  Crew parsing returned null — falling back to opaque interior");
+                            DebugLog($"  Crew parsing returned null — searching from interiorStart");
                         }
                     }
                     catch (Exception crewEx)
                     {
-                        DebugLog($"  Crew parsing threw: {crewEx.Message} — falling back to opaque interior");
+                        DebugLog($"  Crew parsing threw: {crewEx.Message} — searching from interiorStart");
                     }
 
-                    // Phase 2.7: Try to parse systems from the post-crew opaque bytes.
-                    ParsedSystems? parsedSystems = null;
-                    if (postCrewBytes != null && postCrewBytes.Length > 0)
-                    {
-                        try
-                        {
-                            parsedSystems = TryParseSystemsFromPostCrewBytes(postCrewBytes, fmt);
-                            if (parsedSystems == null)
-                                DebugLog($"  System parsing returned null — keeping post-crew bytes opaque");
-                        }
-                        catch (Exception sysEx)
-                        {
-                            DebugLog($"  System parsing threw: {sysEx.Message} — keeping post-crew bytes opaque");
-                        }
-                    }
+                    long weaponSectionPos = FindWeaponSection(weaponSearchStart, fmt, requireCargoValidation: false);
+                    DebugLog($"  Weapon section at {weaponSectionPos} (interior gap: {weaponSectionPos - interiorStart} bytes)");
+
+                    // Build the opaque interior (everything between ship header and weapons)
+                    int interiorLength = (int)(weaponSectionPos - interiorStart);
+                    var opaqueInterior = new byte[interiorLength];
+                    Array.Copy(fullData, (int)interiorStart, opaqueInterior, 0, interiorLength);
+
+                    // Compute the gap bytes between the last parsed structure and weapons.
+                    // This replaces PostSystemsBytes/PostCrewBytes which extended to EOF.
+                    int gapLength = (int)(weaponSectionPos - weaponSearchStart);
+                    var gapBytes = new byte[gapLength];
+                    if (gapLength > 0)
+                        Array.Copy(fullData, (int)weaponSearchStart, gapBytes, 0, gapLength);
 
                     // Phase 3: Parse weapons, drones, augments (vanilla-compatible).
                     ms.Position = weaponSectionPos;
@@ -636,15 +657,15 @@ public class SaveFileParser
                         ScrapAmt = scrapAmt,
                         OpaqueShipInteriorBytes = parsedCrew != null ? [] : opaqueInterior,
                         Crew = parsedCrew ?? new List<CrewState>(),
-                        // If systems were parsed, clear OpaquePostCrewBytes and populate structured fields
-                        OpaquePostCrewBytes = parsedSystems != null ? [] : (postCrewBytes ?? []),
+                        // Gap bytes are trimmed to weapon section boundary (not EOF)
+                        OpaquePostCrewBytes = (parsedCrew != null && parsedSystems == null) ? gapBytes : [],
                         ReservePowerCapacity = parsedSystems?.ReservePowerCapacity ?? 0,
                         Systems = parsedSystems?.Systems ?? new List<SystemState>(),
                         ClonebayInfo = parsedSystems?.ClonebayInfo,
                         BatteryInfo = parsedSystems?.BatteryInfo,
                         ShieldsInfo = parsedSystems?.ShieldsInfo,
                         CloakingInfo = parsedSystems?.CloakingInfo,
-                        OpaquePostSystemsBytes = parsedSystems?.PostSystemsBytes ?? [],
+                        OpaquePostSystemsBytes = parsedSystems != null ? gapBytes : [],
                         Weapons = weapons,
                         Drones = drones,
                         AugmentIds = augmentIds,
