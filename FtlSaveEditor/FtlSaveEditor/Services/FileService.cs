@@ -77,6 +77,7 @@ public class FileService
         }
 
         File.Copy(filePath, backupPath);
+        File.SetLastWriteTime(backupPath, DateTime.Now);
         PruneOldBackups(dir, baseName, ext);
         return backupPath;
     }

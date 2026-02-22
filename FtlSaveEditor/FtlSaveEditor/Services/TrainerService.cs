@@ -118,7 +118,89 @@ public class TrainerService : INotifyPropertyChanged
     public TrainedValue Missiles { get; } = new("Missiles", "Missile ammunition");
     public TrainedValue DroneParts { get; } = new("Drone Parts", "Drone deployment parts");
 
-    public TrainedValue[] AllValues => [Hull, Scrap, Fuel, Missiles, DroneParts];
+    public TrainedValue[] PresetValues => [Hull, Scrap, Fuel, Missiles, DroneParts];
+
+    // Custom user-defined trained values (from scanner or manual entry)
+    private readonly List<TrainedValue> _customValues = new();
+    public IReadOnlyList<TrainedValue> CustomValues => _customValues;
+
+    // All values = presets + custom (used for refresh tick)
+    public IEnumerable<TrainedValue> AllValues => PresetValues.Concat(_customValues);
+
+    // Cheat toggle properties (wrappers around freeze state)
+    public bool IsGodMode
+    {
+        get => Hull.IsFrozen;
+        set
+        {
+            if (value && !Hull.IsFrozen)
+                Hull.DesiredValue = Hull.CurrentValue > 0 ? Hull.CurrentValue : 30;
+            Hull.IsFrozen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsUnlimitedScrap
+    {
+        get => Scrap.IsFrozen;
+        set
+        {
+            if (value && !Scrap.IsFrozen) Scrap.DesiredValue = 999;
+            Scrap.IsFrozen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsUnlimitedFuel
+    {
+        get => Fuel.IsFrozen;
+        set
+        {
+            if (value && !Fuel.IsFrozen) Fuel.DesiredValue = 999;
+            Fuel.IsFrozen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsUnlimitedMissiles
+    {
+        get => Missiles.IsFrozen;
+        set
+        {
+            if (value && !Missiles.IsFrozen) Missiles.DesiredValue = 999;
+            Missiles.IsFrozen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsUnlimitedDroneParts
+    {
+        get => DroneParts.IsFrozen;
+        set
+        {
+            if (value && !DroneParts.IsFrozen) DroneParts.DesiredValue = 999;
+            DroneParts.IsFrozen = value;
+            OnPropertyChanged();
+        }
+    }
+
+    // Memory scanner state
+    private List<IntPtr> _scanCandidates = new();
+    public int ScanCandidateCount => _scanCandidates.Count;
+
+    private string _scanStatus = "";
+    public string ScanStatus
+    {
+        get => _scanStatus;
+        private set { _scanStatus = value; OnPropertyChanged(); }
+    }
+
+    private bool _isScanning;
+    public bool IsScanning
+    {
+        get => _isScanning;
+        private set { _isScanning = value; OnPropertyChanged(); }
+    }
 
     // Known version profiles — these offsets need empirical verification.
     // Starting with community-documented values for vanilla FTL 1.6.x.
@@ -183,12 +265,25 @@ public class TrainerService : INotifyPropertyChanged
         DetectedVersion = "";
         StatusText = "Detached";
 
-        foreach (var v in AllValues)
+        foreach (var v in PresetValues)
         {
             v.IsFrozen = false;
             v.ResolvedAddress = IntPtr.Zero;
             v.CurrentValue = 0;
         }
+
+        foreach (var v in _customValues)
+            v.IsFrozen = false;
+        _customValues.Clear();
+        OnPropertyChanged(nameof(CustomValues));
+
+        ClearScan();
+
+        OnPropertyChanged(nameof(IsGodMode));
+        OnPropertyChanged(nameof(IsUnlimitedScrap));
+        OnPropertyChanged(nameof(IsUnlimitedFuel));
+        OnPropertyChanged(nameof(IsUnlimitedMissiles));
+        OnPropertyChanged(nameof(IsUnlimitedDroneParts));
     }
 
     public void WriteValue(TrainedValue value)
@@ -207,7 +302,7 @@ public class TrainerService : INotifyPropertyChanged
 
     public void MaxAllResources()
     {
-        foreach (var v in AllValues)
+        foreach (var v in PresetValues)
         {
             v.DesiredValue = v.Name == "Hull" ? 30 : 999;
             WriteValue(v);
@@ -218,6 +313,87 @@ public class TrainerService : INotifyPropertyChanged
     {
         foreach (var v in AllValues)
             v.IsFrozen = false;
+        OnPropertyChanged(nameof(IsGodMode));
+        OnPropertyChanged(nameof(IsUnlimitedScrap));
+        OnPropertyChanged(nameof(IsUnlimitedFuel));
+        OnPropertyChanged(nameof(IsUnlimitedMissiles));
+        OnPropertyChanged(nameof(IsUnlimitedDroneParts));
+    }
+
+    // Custom value management
+    public TrainedValue AddCustomValue(string name, IntPtr address)
+    {
+        var tv = new TrainedValue(name, "User-defined") { ResolvedAddress = address };
+        _customValues.Add(tv);
+        OnPropertyChanged(nameof(CustomValues));
+        return tv;
+    }
+
+    public void RemoveCustomValue(TrainedValue value)
+    {
+        value.IsFrozen = false;
+        _customValues.Remove(value);
+        OnPropertyChanged(nameof(CustomValues));
+    }
+
+    // Memory scanner
+    public async Task FirstScanAsync(int targetValue)
+    {
+        if (!IsAttached || _processHandle == IntPtr.Zero) return;
+
+        IsScanning = true;
+        ScanStatus = "Scanning...";
+
+        var handle = _processHandle;
+        _scanCandidates = await Task.Run(() => ProcessMemoryService.ScanForInt32(handle, targetValue));
+
+        IsScanning = false;
+        ScanStatus = $"Found {_scanCandidates.Count:N0} candidates";
+        OnPropertyChanged(nameof(ScanCandidateCount));
+    }
+
+    public async Task RefineScanAsync(int newTargetValue)
+    {
+        if (!IsAttached || _processHandle == IntPtr.Zero || _scanCandidates.Count == 0) return;
+
+        IsScanning = true;
+        int previousCount = _scanCandidates.Count;
+        ScanStatus = $"Refining {previousCount:N0} candidates...";
+
+        var handle = _processHandle;
+        var candidates = _scanCandidates;
+        _scanCandidates = await Task.Run(() => ProcessMemoryService.RefineScan(handle, candidates, newTargetValue));
+
+        IsScanning = false;
+        ScanStatus = $"{previousCount:N0} -> {_scanCandidates.Count:N0} candidates";
+        OnPropertyChanged(nameof(ScanCandidateCount));
+    }
+
+    public List<(IntPtr Address, int CurrentValue)> GetScanResults(int maxResults = 100)
+    {
+        var results = new List<(IntPtr, int)>();
+        if (!IsAttached || _processHandle == IntPtr.Zero) return results;
+
+        foreach (var addr in _scanCandidates.Take(maxResults))
+        {
+            try
+            {
+                int val = ProcessMemoryService.ReadInt32(_processHandle, addr);
+                results.Add((addr, val));
+            }
+            catch
+            {
+                results.Add((addr, 0));
+            }
+        }
+        return results;
+    }
+
+    public void ClearScan()
+    {
+        _scanCandidates.Clear();
+        ScanStatus = "";
+        OnPropertyChanged(nameof(ScanCandidateCount));
     }
 
     private bool TryResolveAddresses()
@@ -299,7 +475,8 @@ public class TrainerService : INotifyPropertyChanged
             return;
         }
 
-        foreach (var v in AllValues)
+        // Refresh both preset and custom values
+        foreach (var v in PresetValues.Concat(_customValues))
         {
             if (!v.IsResolved) continue;
 

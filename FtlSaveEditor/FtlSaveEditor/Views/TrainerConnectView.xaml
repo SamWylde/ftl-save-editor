@@ -49,9 +49,11 @@
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
                            Text="2. Click 'Attach to FTL' above. The trainer will detect the running FTL process."/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
-                           Text="3. Navigate to 'Resources' in the sidebar to view and edit live game values."/>
+                           Text="3. Go to the Resources page. Use Cheat Toggles for quick cheats (god mode, unlimited resources)."/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
-                           Text="4. Changes take effect immediately in-game. Use 'Freeze' to lock a value."/>
+                           Text="4. Use the Memory Scanner to find any game value — enter a value, scan, change it in-game, refine. No Cheat Engine needed."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
+                           Text="5. Add scan results as Custom Values to read, write, and freeze any discovered address."/>
             </StackPanel>
         </Border>
 
@@ -66,7 +68,7 @@
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
                            Text="The trainer reads and writes FTL's process memory directly. This is completely separate from save file editing."/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" Margin="0,0,0,6"
-                           Text="Memory addresses vary between FTL versions. If auto-detection fails, you can enter addresses manually from Cheat Engine in the Resources page."/>
+                           Text="Memory addresses vary between FTL versions. If auto-detection fails, use the built-in Memory Scanner to find values, or enter addresses manually."/>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
                            Text="You may need to run this application as Administrator for the trainer to work."/>
             </StackPanel>
